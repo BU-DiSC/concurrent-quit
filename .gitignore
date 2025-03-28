@@ -2,3 +2,4 @@
 scripts/workloads/
 results/
 *.csv
+.vscode/c_cpp_properties.json

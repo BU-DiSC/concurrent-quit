@@ -55,8 +55,9 @@ class mutex {
 
    public:
     void lock() {
-        while (_lock.test_and_set(std::memory_order_acquire))
+        while (_lock.test_and_set(std::memory_order_acquire)) {
             while (_lock.test(std::memory_order_relaxed));
+        }
     }
 
     void unlock() { _lock.clear(std::memory_order_release); }
@@ -117,15 +118,17 @@ class shared_mutex {
 
    public:
     void lock_shared() {
-        while (_lock.test_and_set(std::memory_order_acquire))
+        while (_lock.test_and_set(std::memory_order_acquire)) {
             while (_lock.test(std::memory_order_relaxed));
+        }
     }
 
     void unlock_shared() { _lock.clear(std::memory_order_release); }
 
     void lock() {
-        while (_lock.test_and_set(std::memory_order_acquire))
+        while (_lock.test_and_set(std::memory_order_acquire)) {
             while (_lock.test(std::memory_order_relaxed));
+        }
     }
 
     void unlock() { _lock.clear(std::memory_order_release); }
