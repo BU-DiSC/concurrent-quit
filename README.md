@@ -1,5 +1,7 @@
 # Quick Insertion Tree
 
+[![clang-format check](https://github.com/BU-DiSC/concurrent-quit/actions/workflows/clang-format-check.yml/badge.svg)](https://github.com/BU-DiSC/concurrent-quit/actions/workflows/clang-format-check.yml)
+
 ```
 ./tree_analysis [OPTIONS...] <INPUTS...>
 

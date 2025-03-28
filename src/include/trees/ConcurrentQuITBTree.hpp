@@ -376,8 +376,9 @@ class BTree {
         for (uint16_t i = 0; i < leaf.info->size; i++) {
             kvs[i] = {leaf.keys[i], leaf.values[i]};
         }
-        std::sort(kvs.begin(), kvs.begin() + leaf.info->size,
-                  [](const auto &a, const auto &b) { return a.first < b.first; });
+        std::sort(
+            kvs.begin(), kvs.begin() + leaf.info->size,
+            [](const auto &a, const auto &b) { return a.first < b.first; });
         for (uint16_t i = 0; i < leaf.info->size; i++) {
             leaf.keys[i] = kvs[i].first;
             leaf.values[i] = kvs[i].second;
