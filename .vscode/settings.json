@@ -1,10 +1,6 @@
 {
     "editor.formatOnSave": true,
-    "files.associations": {
-        "mutex": "cpp"
-    },
     "C_Cpp.clang_format_fallbackStyle": "Google",
-    "clang-format.fallbackStyle": "Google",
     "editor.defaultFormatter": "ms-vscode.cpptools",
     "files.associations": {
         "any": "cpp",
