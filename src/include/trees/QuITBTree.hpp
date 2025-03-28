@@ -1,6 +1,6 @@
 #pragma once
 
-#include <outlier_detector.h>
+#include <ikr.h>
 
 #include <cstring>
 #include <limits>
