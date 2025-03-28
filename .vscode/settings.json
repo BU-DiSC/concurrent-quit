@@ -1,4 +1,10 @@
 {
     "editor.formatOnSave": true,
-    "clang-format.executable": "clang-format "
+    "clang-format.executable": "/opt/homebrew/bin/clang-format",
+    "files.associations": {
+        "mutex": "cpp"
+    },
+    "C_Cpp.clang_format_path": "/opt/homebrew/bin/clang-format",
+    "C_Cpp.clang_format_fallbackStyle": "Google",
+    "clang-format.fallbackStyle": "Google"
 }
