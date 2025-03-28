@@ -32,7 +32,11 @@ using namespace ConcurrentQuITBTree;
 using namespace SimpleBTree;  // FOR_SIMPLEBTREE or fallback
 #endif
 
+#if defined(FOR_CONCURRENT_QUIT_APPENDS)
+using tree_t = BTree<key_type, value_type, true>;
+#else
 using tree_t = BTree<key_type, value_type>;
+#endif
 
 std::vector<key_type> read_txt(const char *filename) {
     std::vector<key_type> data;
@@ -160,7 +164,7 @@ class Workload {
         }
     }
 
-    void run_all(std::vector<std::vector<key_type>> &data) {
+    void run_all(std::vector<std::vector<key_type> > &data) {
         for (size_t j = 0; j < conf.repeat; ++j) {
             for (size_t k = 0; k < data.size(); ++k) {
                 run(conf.files[k], data[k]);
@@ -329,7 +333,7 @@ int main(int argc, char **argv) {
 
     std::cout << "Writing results to: " << conf.results_csv << std::endl;
 
-    std::vector<std::vector<key_type>> data;
+    std::vector<std::vector<key_type> > data;
     for (const auto &file : conf.files) {
         std::filesystem::path fsPath(file);
         std::cout << "Reading " << fsPath.filename().c_str() << std::endl;
