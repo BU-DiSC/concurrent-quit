@@ -147,11 +147,17 @@ class shared_mutex {
 
     ~shared_mutex() { pthread_spin_destroy(&lk); }
 
-    void lock() { while (pthread_spin_lock(&lk)); }
+    void lock() {
+        while (pthread_spin_lock(&lk)) {
+        };
+    }
 
     void unlock() { pthread_spin_unlock(&lk); }
 
-    void lock_shared() { while (pthread_spin_lock(&lk)); }
+    void lock_shared() {
+        while (pthread_spin_lock(&lk)) {
+        };
+    }
 
     void unlock_shared() { pthread_spin_unlock(&lk); }
 };
