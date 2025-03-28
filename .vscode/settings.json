@@ -4,5 +4,17 @@
         "mutex": "cpp"
     },
     "C_Cpp.clang_format_fallbackStyle": "Google",
-    "clang-format.fallbackStyle": "Google"
+    "clang-format.fallbackStyle": "Google",
+    "editor.defaultFormatter": "ms-vscode.cpptools",
+    "files.associations": {
+        "any": "cpp",
+        "bitset": "cpp",
+        "memory": "cpp",
+        "random": "cpp",
+        "future": "cpp",
+        "optional": "cpp"
+    },
+    "[cpp]": {
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd"
+    }
 }

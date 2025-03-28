@@ -4,8 +4,7 @@
 
 #include <chrono>
 #include <cstring>
-#include <functional>
-#include <limits>
+#include <iostream>
 #include <mutex>
 #include <optional>
 #include <ranges>
@@ -37,7 +36,8 @@ struct reset_stats {
     void reset() { fails = 0; }
 };
 
-template <typename key_type, typename value_type>
+template <typename key_type, typename value_type,
+          bool LEAF_APPENDS_ENABLED = false>
 class BTree {
    public:
     using node_id_t = uint32_t;
@@ -519,9 +519,10 @@ class BTree {
         root.info->size = 0;
         root.children[0] = head_id;
         fp_sorted = true;
-#ifdef LEAF_APPENDS
-        std::cout << "leaf appends enabled" << std::endl;
-#endif
+
+        if constexpr (LEAF_APPENDS_ENABLED) {
+            std::cout << "leaf appends enabled" << std::endl;
+        }
     }
 
     bool update(const key_type &key, const value_type &value) {
@@ -561,36 +562,35 @@ class BTree {
 
             life.success();
 
-#ifdef LEAF_APPENDS
-            if (leaf_insert(leaf, leaf.info->size, key, value, true)) {
-                ++ctr_fast;
-                return;
-            }
-#else
-            std::chrono::high_resolution_clock::time_point start =
-                std::chrono::high_resolution_clock::now();
-            index = leaf.value_slot(key);
+            if constexpr (LEAF_APPENDS_ENABLED) {
+                if (leaf_insert(leaf, leaf.info->size, key, value, true)) {
+                    ++ctr_fast;
+                    return;
+                }
+            } else {
+                std::chrono::high_resolution_clock::time_point start =
+                    std::chrono::high_resolution_clock::now();
+                index = leaf.value_slot(key);
 
-            std::chrono::high_resolution_clock::time_point end =
-                std::chrono::high_resolution_clock::now();
-            find_leaf_slot_time +=
-                std::chrono::duration_cast<std::chrono::nanoseconds>(end -
-                                                                     start)
-                    .count();
-            if (leaf_insert(leaf, index, key, value, true)) {
-                ++ctr_fast;
-                return;
+                std::chrono::high_resolution_clock::time_point end =
+                    std::chrono::high_resolution_clock::now();
+                find_leaf_slot_time +=
+                    std::chrono::duration_cast<std::chrono::nanoseconds>(end -
+                                                                         start)
+                        .count();
+                if (leaf_insert(leaf, index, key, value, true)) {
+                    ++ctr_fast;
+                    return;
+                }
             }
-#endif
-            // we reached a case where leaf_insert returned false as it is full.
-#ifdef LEAF_APPENDS
-            // since we were appending and now will be splitting, sort the leaf
-            if (!fp_sorted) {
-                sort_leaf(leaf);
-                fp_sorted = true;
-                ++ctr_sort;
+
+            if constexpr (LEAF_APPENDS_ENABLED) {
+                if (!fp_sorted) {
+                    sort_leaf(leaf);
+                    fp_sorted = true;
+                    ++ctr_sort;
+                }
             }
-#endif
 
             ++ctr_fast_fail;
             mutexes[fp_id].unlock();
@@ -606,17 +606,17 @@ class BTree {
 
             if (reset) {
                 ++ctr_reset;
-#ifdef LEAF_APPENDS
-                if (!fp_sorted) {
-                    mutexes[fp_id].lock();
-                    node_t fp_leaf(manager.open_block(fp_id), LEAF);
-                    sort_leaf(fp_leaf);
-                    fp_sorted = true;
-                    ++ctr_sort;
-                    manager.mark_dirty(fp_id);
-                    mutexes[fp_id].unlock();
+                if constexpr (LEAF_APPENDS_ENABLED) {
+                    if (!fp_sorted) {
+                        mutexes[fp_id].lock();
+                        node_t fp_leaf(manager.open_block(fp_id), LEAF);
+                        sort_leaf(fp_leaf);
+                        fp_sorted = true;
+                        ++ctr_sort;
+                        manager.mark_dirty(fp_id);
+                        mutexes[fp_id].unlock();
+                    }
                 }
-#endif
                 // now update associated metadata
                 if (fp_id != tail_id && leaf.keys[0] == fp_max) {
                     fp_prev_id = fp_id;
