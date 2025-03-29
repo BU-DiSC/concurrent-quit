@@ -5,8 +5,8 @@ namespace sort_utils {
 template <typename key_type, typename value_type>
 void heapify(key_type *keys, value_type *values, int n, int i, int left) {
     int largest = i;
-    int l = 2 * i + 1 - left;
-    int r = 2 * i + 2 - left;
+    int l = 2 * i + 1;
+    int r = 2 * i + 2;
 
     if (l < n && keys[left + l] > keys[left + largest]) {
         largest = l;
