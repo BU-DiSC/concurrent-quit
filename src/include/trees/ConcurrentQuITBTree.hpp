@@ -13,6 +13,8 @@
 
 #include "../MemoryBlockManager.hpp"
 #include "BTreeNode.hpp"
+#include "sort.hpp"
+
 namespace ConcurrentQuITBTree {
 struct reset_stats {
     uint8_t fails;
@@ -346,32 +348,7 @@ class BTree {
         return true;
     }
 
-    // void sort_leaf(node_t &leaf) {
-    //     std::chrono::high_resolution_clock::time_point start =
-    //         std::chrono::high_resolution_clock::now();
-    //     // do an in-place sort of entries in the leaf node without making a
-    //     copy std::sort(leaf.keys, leaf.keys + leaf.info->size,
-    //               [&leaf](const key_type &a, const key_type &b) {
-    //                   // Sort keys and ensure corresponding values are
-    //                   // swapped
-    //                   size_t index_a = &a - leaf.keys;
-    //                   size_t index_b = &b - leaf.keys;
-    //                   if (a > b) {
-    //                       std::swap(leaf.values[index_a],
-    //                       leaf.values[index_b]);
-    //                   }
-    //                   return a < b;
-    //               });
-    //     std::chrono::high_resolution_clock::time_point end =
-    //         std::chrono::high_resolution_clock::now();
-    //     sort_time +=
-    //         std::chrono::duration_cast<std::chrono::nanoseconds>(end - start)
-    //             .count();
-    // }
-
-    void sort_leaf(node_t &leaf) {
-        auto start = std::chrono::high_resolution_clock::now();
-
+    void std_sort_leaf(node_t &leaf) {
         std::array<std::pair<key_type, value_type>, node_t::leaf_capacity> kvs;
         for (uint16_t i = 0; i < leaf.info->size; i++) {
             kvs[i] = {leaf.keys[i], leaf.values[i]};
@@ -383,6 +360,14 @@ class BTree {
             leaf.keys[i] = kvs[i].first;
             leaf.values[i] = kvs[i].second;
         }
+    }
+
+    void sort_leaf(node_t &leaf) {
+        auto start = std::chrono::high_resolution_clock::now();
+
+        int depth_limit = 2 * std::log2(leaf.info->size);
+        sort_utils::introsort(leaf.keys, leaf.values, 0, leaf.info->size - 1,
+                              depth_limit);
 
         auto end = std::chrono::high_resolution_clock::now();
         sort_time +=
