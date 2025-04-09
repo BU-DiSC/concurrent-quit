@@ -4,6 +4,7 @@
 
 #include "config.hpp"
 #include "executor.hpp"
+#include "logging.hpp"
 #include "trees.hpp"
 #include "utils.hpp"
 
@@ -36,8 +37,11 @@ using tree_t = BTree<key_type, value_type>;
 #endif
 
 int main(int argc, char **argv) {
+    // initialize logger
+    utils::logging::Logger log("main");
+
     if (argc < 2) {
-        std::cerr << "Usage: ./<tree_name> <input_file>..." << std::endl;
+        log.error("Usage: ./<tree_name> <input_file>...");
         return -1;
     }
 
@@ -49,13 +53,12 @@ int main(int argc, char **argv) {
 
     tree_t::BlockManager manager(conf.blocks_in_memory);
 
-    std::cout << "Writing CSV Results to: " << conf.results_csv << std::endl;
+    log.info("Writing CSV Results to: {}", conf.results_csv);
 
     std::vector<std::vector<key_type> > data;
     utils::infra::load::load_data(data, conf);
 
-    std::cout << "Running " << tree_t::name << " with " << conf.num_threads
-              << " threads\n";
+    log.trace("Running {} with {} threads", tree_t::name, conf.num_threads);
     for (size_t i = 0; i < conf.runs; ++i) {
         manager.reset();
         tree_t tree(manager);
