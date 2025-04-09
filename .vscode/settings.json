@@ -78,7 +78,9 @@
         "valarray": "cpp",
         "variant": "cpp",
         "codecvt": "cpp",
-        "cassert": "cpp"
+        "cassert": "cpp",
+        "csignal": "cpp",
+        "regex": "cpp"
     },
     "[cpp]": {
         // "editor.defaultFormatter": "ms-vscode.cpptools"

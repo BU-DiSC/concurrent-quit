@@ -8,6 +8,8 @@
 #include <fstream>
 #include <iostream>
 
+#include "logging.hpp"
+
 static std::string str_val(const std::string &val) {
     return val.substr(1, val.size() - 2);
 }
@@ -203,5 +205,31 @@ void Config::print() {
 
     for (const auto &file : files) {
         std::cout << '\t' << file << '\n';
+    }
+}
+
+void Config::print(utils::logging::Logger &log) {
+    log.info("********** Configurations *****");
+    log.trace("blocks_in_memory: {}", blocks_in_memory);
+    log.trace("raw_read_perc: {}", raw_read_perc);
+    log.trace("raw_write_perc: {}", raw_write_perc);
+    log.trace("mixed_writes_perc: {}", mixed_writes_perc);
+    log.trace("mixed_reads_perc: {}", mixed_reads_perc);
+    log.trace("updates_perc: {}", updates_perc);
+    log.trace("short_range: {}", short_range);
+    log.trace("mid_range: {}", mid_range);
+    log.trace("long_range: {}", long_range);
+    log.trace("runs: {}", runs);
+    log.trace("repeat: {}", repeat);
+    log.trace("seed: {}", seed);
+    log.trace("num_threads: {}", num_threads);
+    log.trace("results_csv: {}", results_csv);
+    log.trace("results_log: {}", results_log);
+    log.trace("binary_input: {}", binary_input);
+    log.trace("validate: {}", validate);
+    log.trace("verbose: {}", verbose);
+    log.trace("files:");
+    for (const auto &file : files) {
+        log.trace("\t{}", file);
     }
 }

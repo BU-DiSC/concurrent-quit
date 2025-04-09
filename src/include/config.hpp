@@ -3,6 +3,8 @@
 #include <span>
 #include <string>
 
+#include "logging.hpp"
+
 struct Config {
     unsigned blocks_in_memory = 2000000;
     unsigned raw_read_perc = 0;
@@ -27,4 +29,5 @@ struct Config {
     void parse(const char *file);
     void parse(int argc, char **argv);
     void print();
+    void print(utils::logging::Logger &log);
 };

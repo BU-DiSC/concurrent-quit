@@ -6,6 +6,7 @@
 #include <vector>
 
 #include "config.hpp"
+#include "logging.hpp"
 #include "trees.hpp"
 #include "utils.hpp"
 #include "worker.hpp"
@@ -32,6 +33,7 @@ class Workload {
     const key_type offset;
     std::ofstream results;
     std::mt19937 generator;
+    utils::logging::Logger &log;
 
    public:
     Workload(tree_t &tree, const Config &conf)
@@ -39,10 +41,10 @@ class Workload {
           conf(conf),
           offset(0),
           results(conf.results_csv, std::ofstream::app),
-          generator(conf.seed) {
+          generator(conf.seed),
+          log(utils::logging::Logger::get_instance()) {
         if (!results) {
-            std::cerr << "Error: could not open config file "
-                      << conf.results_csv << std::endl;
+            log.error("Error: could not open config file {}", conf.results_csv);
         }
     }
 
@@ -57,7 +59,7 @@ class Workload {
     void run_preload(const std::vector<key_type> &data, size_t begin,
                      size_t num_load) {
         if (num_load > 0) {
-            std::cout << "Preload (" << num_load << ")\n";
+            log.trace("Preload ({})", num_load);
             auto duration = utils::worker::work(
                 utils::worker::insert_worker<tree_t, key_type>, tree, data,
                 begin, num_load, conf.num_threads, offset);
@@ -68,7 +70,7 @@ class Workload {
     void run_writes(const std::vector<key_type> &data, size_t begin,
                     size_t raw_writes) {
         if (raw_writes > 0) {
-            std::cout << "Raw write (" << raw_writes << ")\n";
+            log.trace("Raw write ({})", raw_writes);
             auto duration = utils::worker::work(
                 utils::worker::insert_worker<tree_t, key_type>, tree, data,
                 begin, begin + raw_writes, conf.num_threads, offset);
@@ -79,7 +81,7 @@ class Workload {
     void run_reads(const std::vector<key_type> &data, size_t num_inserts,
                    size_t raw_queries) {
         if (raw_queries > 0) {
-            std::cout << "Raw read (" << raw_queries << ")\n";
+            log.trace("Raw read ({})", raw_queries);
             std::vector<key_type> queries;
             std::uniform_int_distribution<size_t> index(0, num_inserts - 1);
             for (size_t i = 0; i < raw_queries; i++) {
@@ -100,8 +102,8 @@ class Workload {
             size_t mix_inserts = 0;
             size_t mix_queries = 0;
             utils::worker::Ticket line(begin, begin + mixed_writes);
-            std::cout << "Mixed load (" << mixed_reads << '+' << mixed_writes
-                      << ")\n";
+
+            log.trace("Mixed load ({})", mixed_writes + mixed_reads);
             auto start = std::chrono::high_resolution_clock::now();
             while (mix_inserts < mixed_writes || mix_queries < mixed_reads) {
                 auto idx = line.get();
@@ -128,7 +130,7 @@ class Workload {
     void run_updates(const std::vector<key_type> &data, size_t num_inserts,
                      size_t num_updates) {
         if (num_updates > 0) {
-            std::cout << "Updates (" << num_updates << ")\n";
+            log.trace("Updates ({})", num_updates);
             std::vector<key_type> queries;
             std::uniform_int_distribution<size_t> index(0, num_inserts - 1);
             for (size_t i = 0; i < num_updates; i++) {
@@ -144,7 +146,8 @@ class Workload {
     void run_range(const std::vector<key_type> &data, size_t num_inserts,
                    size_t range, size_t size) {
         if (range > 0) {
-            std::cout << "Range (" << range << ")\n";
+            // std::cout << "Range (" << range << ")\n";
+            log.trace("Range ({})", range);
             auto start = std::chrono::high_resolution_clock::now();
             size_t leaf_accesses = range_queries(tree, data, num_inserts, range,
                                                  offset, size, generator);
@@ -186,15 +189,18 @@ class Workload {
                 if (!tree.contains(item)) {
                     count++;
 #ifdef DEBUG
-                    std::cerr << item << " not found" << std::endl;
+                    // std::cerr << item << " not found" << std::endl;
+                    log.error("Key {} not found", item);
                     break;
 #endif
                 }
             }
             if (count) {
-                std::cerr << "Error: " << count << " keys not found\n";
+                // std::cerr << "Error: " << count << " keys not found\n";
+                log.error("Error: {} keys not found", count);
             } else {
-                std::cerr << "All good\n";
+                // std::cerr << "All good\n";
+                log.info("All good");
             }
         }
 

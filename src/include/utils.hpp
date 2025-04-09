@@ -4,6 +4,7 @@
 #include <vector>
 
 #include "config.hpp"
+#include "logging.hpp"
 
 namespace utils {
 namespace infra {
@@ -43,16 +44,19 @@ void load_configurations(Config &conf, int argc, char **argv) {
 }
 
 void print_configurations(Config &conf) {
-    if (conf.verbose) conf.print();
+    auto &log = utils::logging::Logger::get_instance();
+    if (conf.verbose) conf.print(log);
 }
+
 }  // namespace config
 namespace load {
 template <typename key_type>
 void load_data(std::vector<std::vector<key_type>> &data, Config &conf) {
     for (const auto &file : conf.files) {
+        auto &log = utils::logging::Logger::get_instance();
         std::filesystem::path fsPath(file);
         if (conf.verbose) {
-            std::cout << "Reading " << fsPath.filename().c_str() << std::endl;
+            log.trace("Reading {}", fsPath.filename().c_str());
         }
         if (conf.binary_input) {
             data.emplace_back(utils::infra::file_ops::read_bin<key_type>(file));

@@ -38,7 +38,7 @@ using tree_t = BTree<key_type, value_type>;
 
 int main(int argc, char **argv) {
     // initialize logger
-    utils::logging::Logger log("main");
+    auto &log = utils::logging::Logger::get_instance();
 
     if (argc < 2) {
         log.error("Usage: ./<tree_name> <input_file>...");

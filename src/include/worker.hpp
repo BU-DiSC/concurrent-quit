@@ -32,13 +32,10 @@ void insert_worker(tree_t &tree, const std::vector<key_type> &data,
     auto idx = line.get();
     const auto &size = line._size;
     while (idx < size) {
-        // std::cout << "Inserting " << data[idx] << std::endl;
         const key_type &key = data[idx] + offset;
         tree.insert(key, {});
-        // ensure all keys inserted so far are found
         idx = line.get();
     }
-    std::cout << "done inserting" << std::endl;
 }
 
 template <typename tree_t, typename key_type>

@@ -36,5 +36,13 @@ class Logger {
         logger->error(fmt::runtime(format), std::forward<Args>(args)...);
         return *this;
     }
+
+    Logger(const Logger&) = delete;
+    Logger& operator=(const Logger&) = delete;
+
+    static Logger& get_instance(const std::string& name = "default") {
+        static Logger instance(name);
+        return instance;
+    }
 };
 }  // namespace utils::logging
