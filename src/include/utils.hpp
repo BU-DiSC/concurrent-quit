@@ -44,6 +44,21 @@ void print_configurations(Config &conf) {
     if (conf.verbose) conf.print();
 }
 }  // namespace config
-
+namespace load {
+template <typename key_type>
+void load_data(std::vector<std::vector<key_type>> &data, Config &conf) {
+    for (const auto &file : conf.files) {
+        std::filesystem::path fsPath(file);
+        if (conf.verbose) {
+            std::cout << "Reading " << fsPath.filename().c_str() << std::endl;
+        }
+        if (conf.binary_input) {
+            data.emplace_back(utils::infra::file_ops::read_bin<key_type>(file));
+        } else {
+            data.emplace_back(utils::infra::file_ops::read_txt<key_type>(file));
+        }
+    }
+}
+}  // namespace load
 }  // namespace infra
 }  // namespace utils

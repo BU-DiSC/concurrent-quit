@@ -313,15 +313,7 @@ int main(int argc, char **argv) {
     std::cout << "Writing CSV Results to: " << conf.results_csv << std::endl;
 
     std::vector<std::vector<key_type> > data;
-    for (const auto &file : conf.files) {
-        std::filesystem::path fsPath(file);
-        std::cout << "Reading " << fsPath.filename().c_str() << std::endl;
-        if (conf.binary_input) {
-            data.emplace_back(utils::infra::file_ops::read_bin<key_type>(file));
-        } else {
-            data.emplace_back(utils::infra::file_ops::read_txt<key_type>(file));
-        }
-    }
+    utils::infra::load::load_data(data, conf);
 
     std::cout << "Running " << tree_t::name << " with " << conf.num_threads
               << " threads\n";
