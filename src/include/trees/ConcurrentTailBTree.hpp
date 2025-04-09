@@ -9,7 +9,7 @@
 
 #include "BTreeNode.hpp"
 #include "MemoryBlockManager.hpp"
-#include "util.hpp"
+#include "locks.hpp"
 
 // #include <shared_mutex>
 // using std::shared_mutex;

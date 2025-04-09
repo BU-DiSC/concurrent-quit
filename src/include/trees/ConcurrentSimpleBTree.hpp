@@ -9,17 +9,10 @@
 
 #include "BTreeNode.hpp"
 #include "MemoryBlockManager.hpp"
-#include "util.hpp"
-
-// #include <shared_mutex>
-// using std::shared_mutex;
+#include "locks.hpp"
 #include "mtx.hpp"
+
 using atm::shared_mutex;
-// using srv::shared_mutex;
-// using flg::shared_mutex;
-// using spn::shared_mutex;
-// using rwl::shared_mutex;
-// using mtx::shared_mutex;
 
 namespace ConcurrentSimpleBTree {
 template <typename key_type, typename value_type>
