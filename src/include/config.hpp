@@ -18,8 +18,10 @@ struct Config {
     unsigned seed = 1234;
     unsigned num_threads = 1;
     std::string results_csv = "results.csv";
+    std::string results_log = "results.log";
     bool binary_input = true;
     bool validate = false;
+    bool verbose = false;
     std::span<char *> files;
 
     void parse(const char *file);

@@ -297,18 +297,20 @@ class Workload {
 };
 
 int main(int argc, char **argv) {
-    if (argc < 3) {
-        std::cerr << "Usage: ./<tree_name> <config_file> <input_file>..."
-                  << std::endl;
+    if (argc < 2) {
+        std::cerr << "Usage: ./<tree_name> <input_file>..." << std::endl;
         return -1;
     }
 
-    std::string config_file = argv[1];
-    Config conf = utils::infra::config::load_configurations(config_file);
+    std::string config_file = "config.toml";
+    Config conf;
+    utils::infra::config::load_configurations(conf, config_file);
+    utils::infra::config::load_configurations(conf, argc, argv);
+    utils::infra::config::print_configurations(conf);
 
     tree_t::BlockManager manager(conf.blocks_in_memory);
 
-    std::cout << "Writing results to: " << conf.results_csv << std::endl;
+    std::cout << "Writing CSV Results to: " << conf.results_csv << std::endl;
 
     std::vector<std::vector<key_type> > data;
     for (const auto &file : conf.files) {

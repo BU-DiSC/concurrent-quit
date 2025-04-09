@@ -55,10 +55,14 @@ void Config::parse(const char *file) {
             num_threads = std::stoi(knob_value);
         } else if (knob_name == "RESULTS_FILE") {
             results_csv = str_val(knob_value);
+        } else if (knob_name == "RESULTS_LOG") {
+            results_log = str_val(knob_value);
         } else if (knob_name == "BINARY_INPUT") {
             binary_input = str_bool(knob_value);
         } else if (knob_name == "VALIDATE") {
             validate = str_bool(knob_value);
+        } else if (knob_name == "VERBOSE") {
+            verbose = str_bool(knob_value);
         } else {
             std::cerr << "Invalid knob name: " << knob_name << std::endl;
         }
@@ -66,25 +70,50 @@ void Config::parse(const char *file) {
 }
 
 void Config::parse(int argc, char **argv) {
+    int i = 1;
     static struct option long_options[] = {
-        {"blocks_in_memory", required_argument, nullptr, 1},
-        {"raw_read_perc", required_argument, nullptr, 2},
-        {"raw_write_perc", required_argument, nullptr, 3},
-        {"mixed_writes_perc", required_argument, nullptr, 4},
-        {"mixed_reads_perc", required_argument, nullptr, 5},
-        {"updates_perc", required_argument, nullptr, 6},
-        {"short_range", required_argument, nullptr, 7},
-        {"mid_range", required_argument, nullptr, 8},
-        {"long_range", required_argument, nullptr, 9},
-        {"runs", required_argument, nullptr, 10},
-        {"repeat", required_argument, nullptr, 11},
-        {"seed", required_argument, nullptr, 12},
-        {"num_threads", required_argument, nullptr, 13},
-        {"results_csv", required_argument, nullptr, 14},
-        {"txt_input", no_argument, nullptr, 15},
-        {"validate", no_argument, nullptr, 16},
+        {"blocks_in_memory", required_argument, nullptr, i++},
+        {"raw_read_perc", required_argument, nullptr, i++},
+        {"raw_write_perc", required_argument, nullptr, i++},
+        {"mixed_writes_perc", required_argument, nullptr, i++},
+        {"mixed_reads_perc", required_argument, nullptr, i++},
+        {"updates_perc", required_argument, nullptr, i++},
+        {"short_range", required_argument, nullptr, i++},
+        {"mid_range", required_argument, nullptr, i++},
+        {"long_range", required_argument, nullptr, i++},
+        {"runs", required_argument, nullptr, i++},
+        {"repeat", required_argument, nullptr, i++},
+        {"seed", required_argument, nullptr, i++},
+        {"num_threads", required_argument, nullptr, i++},
+        {"results_csv", required_argument, nullptr, i++},
+        {"results_log", required_argument, nullptr, i++},
+        {"txt_input", no_argument, nullptr, i++},
+        {"validate", no_argument, nullptr, i++},
+        {"verbose", no_argument, nullptr, i++},
         {nullptr, 0, nullptr, 0},
     };
+    // static struct option long_options[] = {
+    //     {"blocks_in_memory", required_argument, nullptr, 1},
+    //     {"raw_read_perc", required_argument, nullptr, 2},
+    //     {"raw_write_perc", required_argument, nullptr, 3},
+    //     {"mixed_writes_perc", required_argument, nullptr, 4},
+    //     {"mixed_reads_perc", required_argument, nullptr, 5},
+    //     {"updates_perc", required_argument, nullptr, 6},
+    //     {"short_range", required_argument, nullptr, 7},
+    //     {"mid_range", required_argument, nullptr, 8},
+    //     {"long_range", required_argument, nullptr, 9},
+    //     {"runs", required_argument, nullptr, 10},
+    //     {"repeat", required_argument, nullptr, 11},
+    //     {"seed", required_argument, nullptr, 12},
+    //     {"num_threads", required_argument, nullptr, 13},
+    //     {"results_csv", required_argument, nullptr, 14},
+    //     {"results_log", required_argument, nullptr, 15},
+    //     {"txt_input", no_argument, nullptr, 16},
+    //     {"validate", no_argument, nullptr, 17},
+    //     {"verbose", no_argument, nullptr, 18},
+    //     {nullptr, 0, nullptr, 0},
+    // };
+
     while (true) {
         int c = getopt_long(argc, argv, "", long_options, nullptr);
         if (c == -1) break;
@@ -132,11 +161,17 @@ void Config::parse(int argc, char **argv) {
             case 14:
                 results_csv = optarg;
                 break;
-            case 15:
-                binary_input = false;
+            case 15:  // results_log
+                results_log = optarg;
                 break;
             case 16:
+                binary_input = false;
+                break;
+            case 17:
                 validate = true;
+                break;
+            case 18:
+                verbose = true;
                 break;
             default:
                 printf("?? getopt returned character code 0%o ??\n", c);
@@ -158,8 +193,11 @@ void Config::print() {
               << "\nruns: " << runs << "\nrepeat: " << repeat
               << "\nseed: " << seed << "\nnum_threads: " << num_threads
               << "\nresults_csv: " << results_csv
+              << "\nresults_log: " << results_log
               << "\nbinary_input: " << binary_input
-              << "\nvalidate: " << validate << "\nfiles:\n";
+              << "\nvalidate: " << validate << "\nverbose: " << verbose
+              << "\nfiles:\n";
+
     for (const auto &file : files) {
         std::cout << '\t' << file << '\n';
     }

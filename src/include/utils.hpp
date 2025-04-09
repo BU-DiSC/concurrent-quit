@@ -32,22 +32,16 @@ std::vector<key_type> read_bin(const char *filename) {
 };  // namespace file_ops
 
 namespace config {
-Config load_configurations(std::string &config_file,
-                           bool print_config = false) {
-    Config conf;
+void load_configurations(Config &conf, std::string &config_file) {
     conf.parse(config_file.c_str());
-    if (print_config) {
-        conf.print();
-    }
-    return conf;
 }
 
-Config load_configurations(int argc, char **argv) {
-    Config conf;
+void load_configurations(Config &conf, int argc, char **argv) {
     conf.parse(argc, argv);
-    // by default, print back config
-    conf.print();
-    return conf;
+}
+
+void print_configurations(Config &conf) {
+    if (conf.verbose) conf.print();
 }
 }  // namespace config
 
