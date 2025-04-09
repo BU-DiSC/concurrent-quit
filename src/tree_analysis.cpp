@@ -1,17 +1,10 @@
-#include <atomic>
 #include <cassert>
-#include <chrono>
 #include <config.hpp>
 #include <executor.hpp>
-#include <filesystem>
-#include <fstream>
 #include <iostream>
-#include <random>
-#include <thread>
 #include <trees.hpp>
 #include <utils.hpp>
 #include <vector>
-#include <worker.hpp>
 
 using key_type = uint32_t;
 using value_type = uint32_t;
