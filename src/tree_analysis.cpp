@@ -8,9 +8,8 @@
 #include <random>
 #include <thread>
 #include <trees.hpp>
+#include <utils.hpp>
 #include <vector>
-
-#include "utils.hpp"
 
 using key_type = uint32_t;
 using value_type = uint32_t;
