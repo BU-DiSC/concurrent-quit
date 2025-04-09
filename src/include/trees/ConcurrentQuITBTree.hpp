@@ -1,8 +1,7 @@
 #pragma once
 
-#include <ikr.h>
-
 #include <chrono>
+#include <cmath>
 #include <cstring>
 #include <iostream>
 #include <mutex>
@@ -13,6 +12,7 @@
 
 #include "../MemoryBlockManager.hpp"
 #include "BTreeNode.hpp"
+#include "ikr.h"
 #include "sort.hpp"
 
 namespace ConcurrentQuITBTree {

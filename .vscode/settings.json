@@ -85,7 +85,7 @@
         "editor.defaultFormatter": "xaver.clang-format"
     },
     "clang-format.fallbackStyle": "Google",
-    "C_Cpp.default.cppStandard": "",
+    "C_Cpp.default.cppStandard": "c++20",
     "C_Cpp.inlayHints.autoDeclarationTypes.enabled": true,
     "C_Cpp.inlayHints.parameterNames.enabled": true,
     "C_Cpp.inlayHints.referenceOperator.enabled": true,

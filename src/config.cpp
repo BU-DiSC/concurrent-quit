@@ -1,7 +1,10 @@
+
+
+#include "config.hpp"
+
 #include <getopt.h>
 
 #include <algorithm>
-#include <config.hpp>
 #include <fstream>
 #include <iostream>
 

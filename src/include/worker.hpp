@@ -2,15 +2,16 @@
 #include <atomic>
 #include <cassert>
 #include <chrono>
-#include <config.hpp>
 #include <filesystem>
 #include <fstream>
 #include <iostream>
 #include <random>
 #include <thread>
-#include <trees.hpp>
-#include <utils.hpp>
 #include <vector>
+
+#include "config.hpp"
+#include "trees.hpp"
+#include "utils.hpp"
 
 namespace utils::worker {
 struct Ticket {
