@@ -3,7 +3,7 @@
 #include <span>
 #include <string>
 
-#include "logging.hpp"
+#include "utils/logging.hpp"
 
 struct Config {
     unsigned blocks_in_memory = 2000000;

@@ -3,10 +3,10 @@
 #include <vector>
 
 #include "config.hpp"
-#include "executor.hpp"
-#include "logging.hpp"
 #include "trees.hpp"
-#include "utils.hpp"
+#include "utils/executor.hpp"
+#include "utils/logging.hpp"
+#include "utils/utils.hpp"
 
 using key_type = uint32_t;
 using value_type = uint32_t;
