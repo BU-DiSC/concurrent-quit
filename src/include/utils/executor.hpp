@@ -7,11 +7,13 @@
 
 #include "../config.hpp"
 #include "logging.hpp"
+#include "metrics.hpp"
 #include "trees.hpp"
 #include "utils.hpp"
 #include "worker.hpp"
 namespace utils {
 namespace executor {
+enum RANGE_QUERY_TYPE { SHORT, MID, LONG };
 template <typename tree_t, typename key_type>
 size_t range_queries(tree_t &tree, const std::vector<key_type> &data,
                      size_t num_inserts, size_t range, const key_type &offset,
@@ -34,6 +36,7 @@ class Workload {
     std::ofstream results;
     std::mt19937 generator;
     utils::logging::Logger &log;
+    utils::executor::metrics::Latency timer;
 
    public:
     Workload(tree_t &tree, const Config &conf)
@@ -64,6 +67,7 @@ class Workload {
                 utils::worker::insert_worker<tree_t, key_type>, tree, data,
                 begin, num_load, conf.num_threads, offset);
             results << ", " << duration.count();
+            timer.preload = duration.count();
         }
     }
 
@@ -75,6 +79,7 @@ class Workload {
                 utils::worker::insert_worker<tree_t, key_type>, tree, data,
                 begin, begin + raw_writes, conf.num_threads, offset);
             results << ", " << duration.count();
+            timer.raw_writes = duration.count();
         }
     }
 
@@ -91,6 +96,7 @@ class Workload {
                 utils::worker::query_worker<tree_t, key_type>, tree, data, 0,
                 raw_queries, conf.num_threads, offset);
             results << ", " << duration.count();
+            timer.raw_reads = duration.count();
         }
     }
 
@@ -124,6 +130,7 @@ class Workload {
             }
             auto duration = std::chrono::high_resolution_clock::now() - start;
             results << ", " << duration.count() << ", " << ctr_empty;
+            timer.mixed = duration.count();
         }
     }
 
@@ -140,11 +147,12 @@ class Workload {
                 utils::worker::update_worker<tree_t, key_type>, tree, data, 0,
                 num_updates, conf.num_threads, offset);
             results << ", " << duration.count();
+            timer.updates = duration.count();
         }
     }
 
     void run_range(const std::vector<key_type> &data, size_t num_inserts,
-                   size_t range, size_t size) {
+                   size_t range, size_t size, RANGE_QUERY_TYPE type) {
         if (range > 0) {
             // std::cout << "Range (" << range << ")\n";
             log.trace("Range ({})", range);
@@ -154,7 +162,30 @@ class Workload {
             auto duration = std::chrono::high_resolution_clock::now() - start;
             auto accesses = (leaf_accesses + range - 1) / range;  // ceil
             results << ", " << duration.count() << ", " << accesses;
+            switch (type) {
+                case SHORT:
+                    timer.short_range = duration.count();
+                    break;
+                case MID:
+                    timer.mid_range = duration.count();
+                    break;
+                case LONG:
+                    timer.long_range = duration.count();
+                    break;
+            }
         }
+    }
+
+    void print_timers() {
+        log.info("******** Execution Latency ********");
+        log.trace("Preload: {}", timer.preload);
+        log.trace("Raw Writes: {}", timer.raw_writes);
+        log.trace("Raw Reads: {}", timer.raw_reads);
+        log.trace("Mixed: {}", timer.mixed);
+        log.trace("Updates: {}", timer.updates);
+        log.trace("Short Range: {}", timer.short_range);
+        log.trace("Mid Range: {}", timer.mid_range);
+        log.trace("Long Range: {}", timer.long_range);
     }
 
     void run(const char *name, const std::vector<key_type> &data) {
@@ -179,9 +210,12 @@ class Workload {
         run_mixed(data, num_load + raw_writes, mixed_writes, mixed_reads);
         run_reads(data, num_inserts, raw_queries);
         run_updates(data, num_inserts, num_updates);
-        run_range(data, num_inserts, conf.short_range, 1000);
-        run_range(data, num_inserts, conf.mid_range, 100);
-        run_range(data, num_inserts, conf.long_range, 10);
+        run_range(data, num_inserts, conf.short_range, 1000,
+                  RANGE_QUERY_TYPE::SHORT);
+        run_range(data, num_inserts, conf.mid_range, 100,
+                  RANGE_QUERY_TYPE::MID);
+        run_range(data, num_inserts, conf.long_range, 10,
+                  RANGE_QUERY_TYPE::LONG);
 
         if (conf.validate) {
             size_t count = 0;
@@ -206,6 +240,7 @@ class Workload {
 
         results << ", ";
         results << tree << std::endl;
+        print_timers();
     }
 };
 
