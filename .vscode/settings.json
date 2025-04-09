@@ -77,7 +77,8 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "codecvt": "cpp"
+        "codecvt": "cpp",
+        "cassert": "cpp"
     },
     "[cpp]": {
         // "editor.defaultFormatter": "ms-vscode.cpptools"
