@@ -297,17 +297,15 @@ class Workload {
 };
 
 int main(int argc, char **argv) {
-    if (argc < 2) {
-        std::cerr << "Usage: ./tree_analysis <input_file>..." << std::endl;
+    if (argc < 3) {
+        std::cerr << "Usage: ./<tree_name> <config_file> <input_file>..."
+                  << std::endl;
         return -1;
     }
 
-    auto config_file = "config.toml";
+    std::string config_file = argv[1];
+    Config conf = utils::infra::config::load_configurations(config_file);
 
-    Config conf;
-    conf.parse(config_file);
-    conf.parse(argc, argv);
-    // conf.print();
     tree_t::BlockManager manager(conf.blocks_in_memory);
 
     std::cout << "Writing results to: " << conf.results_csv << std::endl;
@@ -317,9 +315,9 @@ int main(int argc, char **argv) {
         std::filesystem::path fsPath(file);
         std::cout << "Reading " << fsPath.filename().c_str() << std::endl;
         if (conf.binary_input) {
-            data.emplace_back(utils::infra::read_bin<key_type>(file));
+            data.emplace_back(utils::infra::file_ops::read_bin<key_type>(file));
         } else {
-            data.emplace_back(utils::infra::read_txt<key_type>(file));
+            data.emplace_back(utils::infra::file_ops::read_txt<key_type>(file));
         }
     }
 
