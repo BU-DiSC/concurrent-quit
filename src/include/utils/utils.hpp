@@ -3,7 +3,7 @@
 #include <fstream>
 #include <vector>
 
-#include "config.hpp"
+#include "../config.hpp"
 #include "logging.hpp"
 
 namespace utils {

@@ -9,7 +9,7 @@
 #include <thread>
 #include <vector>
 
-#include "config.hpp"
+#include "../config.hpp"
 #include "trees.hpp"
 #include "utils.hpp"
 

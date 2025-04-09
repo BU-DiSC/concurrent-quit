@@ -5,7 +5,7 @@
 #include <random>
 #include <vector>
 
-#include "config.hpp"
+#include "../config.hpp"
 #include "logging.hpp"
 #include "trees.hpp"
 #include "utils.hpp"
