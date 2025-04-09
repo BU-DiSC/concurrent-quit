@@ -348,24 +348,26 @@ class BTree {
         return true;
     }
 
+    void std_sort_leaf(node_t &leaf) {
+        std::array<std::pair<key_type, value_type>, node_t::leaf_capacity> kvs;
+        for (uint16_t i = 0; i < leaf.info->size; i++) {
+            kvs[i] = {leaf.keys[i], leaf.values[i]};
+        }
+        std::sort(
+            kvs.begin(), kvs.begin() + leaf.info->size,
+            [](const auto &a, const auto &b) { return a.first < b.first; });
+        for (uint16_t i = 0; i < leaf.info->size; i++) {
+            leaf.keys[i] = kvs[i].first;
+            leaf.values[i] = kvs[i].second;
+        }
+    }
+
     void sort_leaf(node_t &leaf) {
         auto start = std::chrono::high_resolution_clock::now();
 
         int depth_limit = 2 * std::log2(leaf.info->size);
         sort_utils::introsort(leaf.keys, leaf.values, 0, leaf.info->size - 1,
                               depth_limit);
-
-        // std::array<std::pair<key_type, value_type>, node_t::leaf_capacity>
-        // kvs; for (uint16_t i = 0; i < leaf.info->size; i++) {
-        //     kvs[i] = {leaf.keys[i], leaf.values[i]};
-        // }
-        // std::sort(
-        //     kvs.begin(), kvs.begin() + leaf.info->size,
-        //     [](const auto &a, const auto &b) { return a.first < b.first; });
-        // for (uint16_t i = 0; i < leaf.info->size; i++) {
-        //     leaf.keys[i] = kvs[i].first;
-        //     leaf.values[i] = kvs[i].second;
-        // }
 
         auto end = std::chrono::high_resolution_clock::now();
         sort_time +=
