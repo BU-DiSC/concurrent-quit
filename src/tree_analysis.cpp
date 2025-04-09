@@ -10,6 +10,8 @@
 #include <trees.hpp>
 #include <vector>
 
+#include "utils.hpp"
+
 using key_type = uint32_t;
 using value_type = uint32_t;
 
@@ -37,28 +39,6 @@ using tree_t = BTree<key_type, value_type, true>;
 #else
 using tree_t = BTree<key_type, value_type>;
 #endif
-
-std::vector<key_type> read_txt(const char *filename) {
-    std::vector<key_type> data;
-    std::string line;
-    std::ifstream ifs(filename);
-    while (std::getline(ifs, line)) {
-        key_type key = std::stoul(line);
-        data.push_back(key);
-    }
-    return data;
-}
-
-std::vector<key_type> read_bin(const char *filename) {
-    std::ifstream inputFile(filename, std::ios::binary);
-    assert(inputFile.is_open());
-    inputFile.seekg(0, std::ios::end);
-    const std::streampos fileSize = inputFile.tellg();
-    inputFile.seekg(0, std::ios::beg);
-    std::vector<key_type> data(fileSize / sizeof(key_type));
-    inputFile.read(reinterpret_cast<char *>(data.data()), fileSize);
-    return data;
-}
 
 struct Ticket {
     std::atomic<size_t> _idx;
@@ -338,9 +318,9 @@ int main(int argc, char **argv) {
         std::filesystem::path fsPath(file);
         std::cout << "Reading " << fsPath.filename().c_str() << std::endl;
         if (conf.binary_input) {
-            data.emplace_back(read_bin(file));
+            data.emplace_back(utils::infra::read_bin<key_type>(file));
         } else {
-            data.emplace_back(read_txt(file));
+            data.emplace_back(utils::infra::read_txt<key_type>(file));
         }
     }
 
