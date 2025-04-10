@@ -80,7 +80,8 @@
         "codecvt": "cpp",
         "cassert": "cpp",
         "csignal": "cpp",
-        "regex": "cpp"
+        "regex": "cpp",
+        "*.ipp": "cpp"
     },
     "[cpp]": {
         // "editor.defaultFormatter": "ms-vscode.cpptools"

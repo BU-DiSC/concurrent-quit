@@ -11,4 +11,14 @@ struct Latency {
     uint64_t mid_range = 0;
     uint64_t long_range = 0;
 };
+
+struct Stats {
+    uint32_t num_leaf_nodes = 0;
+    uint32_t num_internal_nodes = 0;
+    uint32_t num_keys_inserted = 0;
+    uint32_t num_fast_inserts = 0;
+    uint32_t num_fast_inserts_fail = 0;
+    uint32_t num_fastpath_resets = 0;
+    uint32_t num_fastpath_sorts = 0;
+};
 }  // namespace utils::executor::metrics

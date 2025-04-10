@@ -49,15 +49,28 @@ class BTree {
     using step = node_id_t;
     using path_t = std::vector<step>;
 
-    static constexpr const char *name = "ConcurrentQuITBTree";
+    static constexpr const char *name = LEAF_APPENDS_ENABLED
+                                            ? "ConcurrentQuitBTreeLeafAppends"
+                                            : "ConcurrentQuITBTree";
     static constexpr const bool concurrent = false;
     friend std::ostream &operator<<(std::ostream &os, const BTree &tree) {
-        os << tree.ctr_size << ", " << tree.ctr_fast << ", "
-           << tree.ctr_fast_fail << ", " << tree.ctr_reset << ", "
+        os << tree.size << ", " << +tree.height << ", " << tree.internal << ", "
+           << tree.leaves << ", " << tree.ctr_fast << ", "
+           << tree.ctr_redistribute << ", " << tree.ctr_soft << ", "
+           << tree.ctr_hard << ", " << tree.ctr_fast_fail << ", "
            << tree.ctr_sort;
-        os << ", " << tree.find_leaf_slot_time << ", " << tree.move_in_leaf_time
-           << ", " << tree.sort_time;
+        // os << ", " << tree.find_leaf_slot_time << ", " <<
+        // tree.move_in_leaf_time
+        //    << ", " << tree.sort_time;
         return os;
+    }
+
+    unordered_map<string, uint64_t> get_profiling_times() {
+        unordered_map<string, uint64_t> times;
+        times["find_leaf_slot_time"] = find_leaf_slot_time;
+        times["move_in_leaf_time"] = move_in_leaf_time;
+        times["sort_time"] = sort_time;
+        return times;
     }
 
     using dist_f = std::size_t (*)(const key_type &, const key_type &);
@@ -96,13 +109,17 @@ class BTree {
 
     std::atomic<uint32_t> ctr_fast{};
     std::atomic<uint32_t> ctr_fast_fail{};
-    std::atomic<uint32_t> ctr_reset{};
+    std::atomic<uint32_t> ctr_hard{};
     std::atomic<uint32_t> ctr_sort{};
     std::atomic<uint32_t> fp_slot{};
     mutable std::atomic<uint32_t> ctr_root_shared{};
     mutable uint32_t ctr_root_unique{};
     uint32_t ctr_root{};
-    std::atomic<uint32_t> ctr_size;
+    std::atomic<uint32_t> size{};
+    std::atomic<uint32_t> leaves{};
+    std::atomic<uint32_t> internal{};
+    std::atomic<uint32_t> ctr_redistribute{};
+    std::atomic<uint32_t> ctr_soft{};
 
     // timers for profiling
     long long find_leaf_slot_time = 0;
@@ -114,6 +131,7 @@ class BTree {
         node_id_t left_node_id = manager.allocate();
         node_t root(manager.open_block(root_id));
         node_t left_node(manager.open_block(left_node_id));
+        ++internal;
         std::memcpy(left_node.info, root.info, 4096);
         left_node.info->id = left_node_id;
         manager.mark_dirty(left_node_id);
@@ -239,6 +257,7 @@ class BTree {
 
             node_id_t new_node_id = manager.allocate();
             node_t new_node(manager.open_block(new_node_id), INTERNAL);
+            ++internal;
             manager.mark_dirty(new_node_id);
 
             node.info->size = SPLIT_INTERNAL_POS;
@@ -313,7 +332,7 @@ class BTree {
             }
         }
 
-        ctr_size++;
+        ++size;
         manager.mark_dirty(leaf.info->id);
 
         if (index < leaf.info->size) {
@@ -377,7 +396,7 @@ class BTree {
 
     void split_insert(node_t &leaf, uint16_t index, const path_t &path,
                       const key_type &key, const value_type &value, bool fast) {
-        ctr_size++;
+        ++size;
         uint16_t split_leaf_pos = SPLIT_LEAF_POS;
 
         bool fp_move = false;
@@ -408,6 +427,7 @@ class BTree {
 
         node_id_t new_leaf_id = manager.allocate();
         node_t new_leaf(manager.open_block(new_leaf_id), LEAF);
+        ++leaves;
         manager.mark_dirty(new_leaf_id);
 
         leaf.info->size = split_leaf_pos;
@@ -590,7 +610,7 @@ class BTree {
             find_leaf_exclusive(leaf, key, leaf_max);
 
             if (reset) {
-                ++ctr_reset;
+                ++ctr_hard;
                 if constexpr (LEAF_APPENDS_ENABLED) {
                     if (!fp_sorted) {
                         mutexes[fp_id].lock();
