@@ -73,6 +73,13 @@ class BTree {
         return os;
     }
 
+    std::unordered_map<std::string, uint64_t> get_stats() const {
+        return {{"size", size},
+                {"height", height},
+                {"internal", internal},
+                {"leaves", leaves}};
+    }
+
     bool update(const key_type &key, const value_type &value) {
         node_t leaf;
         find_leaf_exclusive(leaf, key);
@@ -402,7 +409,6 @@ class BTree {
     const node_id_t root_id;
     node_id_t head_id;
     uint8_t height;
-    uint32_t size;
     uint32_t leaves;
     uint32_t internal;
 };

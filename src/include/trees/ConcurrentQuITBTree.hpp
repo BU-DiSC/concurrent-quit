@@ -65,8 +65,21 @@ class BTree {
         return os;
     }
 
-    unordered_map<string, uint64_t> get_profiling_times() {
-        unordered_map<string, uint64_t> times;
+    std::unordered_map<std::string, uint64_t> get_stats() const {
+        return {{"size", size},
+                {"height", height},
+                {"internal", internal},
+                {"leaves", leaves},
+                {"fast_inserts", ctr_fast},
+                {"redistribute", ctr_redistribute},
+                {"soft_resets", ctr_soft},
+                {"hard_resets", ctr_hard},
+                {"fast_inserts_fail", ctr_fast_fail},
+                {"sort", ctr_sort}};
+    }
+
+    std::unordered_map<std::string, uint64_t> get_profiling_times() {
+        std::unordered_map<std::string, uint64_t> times;
         times["find_leaf_slot_time"] = find_leaf_slot_time;
         times["move_in_leaf_time"] = move_in_leaf_time;
         times["sort_time"] = sort_time;

@@ -83,6 +83,14 @@ class BTree {
         return os;
     }
 
+    std::unordered_map<std::string, uint64_t> get_stats() const {
+        return {{"size", size},
+                {"height", height},
+                {"internal", internal},
+                {"leaves", leaves},
+                {"fast_inserts", ctr_fast}};
+    }
+
     ~BTree() { std::cout << "fast: " << ctr_fast << "\n"; }
 
     bool update(const key_type &key, const value_type &value) {
@@ -449,6 +457,5 @@ class BTree {
     std::atomic<size_t> ctr_fast{};
     uint32_t leaves;
     uint32_t internal;
-    std::atomic<size_t> size{};
 };
 }  // namespace ConcurrentTailBTree

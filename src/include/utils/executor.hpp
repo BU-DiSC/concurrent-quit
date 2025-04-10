@@ -188,6 +188,14 @@ class Workload {
         log.trace("Long Range: {}", timer.long_range);
     }
 
+    void print_stats(std::string stats_type,
+                     std::unordered_map<std::string, uint64_t> &stats) {
+        log.trace("******** {} ********", stats_type);
+        for (const auto &[key, value] : stats) {
+            log.trace("{}: {}", key, value);
+        }
+    }
+
     void run(const char *name, const std::vector<key_type> &data) {
         const size_t num_inserts = data.size();
         const size_t raw_writes = conf.raw_write_perc / 100.0 * num_inserts;
@@ -241,6 +249,8 @@ class Workload {
         results << ", ";
         results << tree << std::endl;
         print_timers();
+        auto stats = tree.get_stats();
+        print_stats("Tree Stats", stats);
     }
 };
 

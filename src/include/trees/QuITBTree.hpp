@@ -210,6 +210,17 @@ class BTree {
         return os;
     }
 
+    std::unordered_map<std::string, uint64_t> get_stats() const {
+        return {{"size", size},
+                {"height", height},
+                {"internal", internal},
+                {"leaves", leaves},
+                {"fast_inserts", ctr_fast},
+                {"redistribute", ctr_redistribute},
+                {"soft_resets", ctr_soft},
+                {"hard_resets", ctr_hard}};
+    }
+
     bool top_insert(const key_type &key, const value_type &value) {
         node_t leaf;
         path_t path;

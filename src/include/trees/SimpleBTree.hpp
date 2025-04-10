@@ -34,6 +34,13 @@ class BTree {
         return os;
     }
 
+    std::unordered_map<std::string, uint64_t> get_stats() const {
+        return {{"size", size},
+                {"height", height},
+                {"internal", internal},
+                {"leaves", leaves}};
+    }
+
     explicit BTree(BlockManager &m)
         : manager(m),
           root_id(m.allocate()),

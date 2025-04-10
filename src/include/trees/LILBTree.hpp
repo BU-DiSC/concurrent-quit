@@ -58,6 +58,14 @@ class BTree {
         return os;
     }
 
+    std::unordered_map<std::string, uint64_t> get_stats() const {
+        return {{"size", size},
+                {"height", height},
+                {"internal", internal},
+                {"leaves", leaves},
+                {"fast_inserts", ctr_fast}};
+    }
+
     bool update(const key_type &key, const value_type &value) {
         node_t leaf;
         find_leaf(leaf, key);
