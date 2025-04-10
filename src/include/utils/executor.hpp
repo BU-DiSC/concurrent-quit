@@ -177,22 +177,22 @@ class Workload {
     }
 
     void print_timers() {
-        log.info("******** Execution Latency ********");
-        log.trace("Preload: {}", timer.preload);
-        log.trace("Raw Writes: {}", timer.raw_writes);
-        log.trace("Raw Reads: {}", timer.raw_reads);
-        log.trace("Mixed: {}", timer.mixed);
-        log.trace("Updates: {}", timer.updates);
-        log.trace("Short Range: {}", timer.short_range);
-        log.trace("Mid Range: {}", timer.mid_range);
-        log.trace("Long Range: {}", timer.long_range);
+        log.trace("******** Execution Latency ********");
+        log.info("Preload: {}", timer.preload);
+        log.info("Raw Writes: {}", timer.raw_writes);
+        log.info("Raw Reads: {}", timer.raw_reads);
+        log.info("Mixed: {}", timer.mixed);
+        log.info("Updates: {}", timer.updates);
+        log.info("Short Range: {}", timer.short_range);
+        log.info("Mid Range: {}", timer.mid_range);
+        log.info("Long Range: {}", timer.long_range);
     }
 
     void print_stats(std::string stats_type,
                      std::unordered_map<std::string, uint64_t> &stats) {
         log.trace("******** {} ********", stats_type);
         for (const auto &[key, value] : stats) {
-            log.trace("{}: {}", key, value);
+            log.info("{}: {}", key, value);
         }
     }
 

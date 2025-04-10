@@ -209,27 +209,27 @@ void Config::print() {
 }
 
 void Config::print(utils::logging::Logger &log) {
-    log.info("********** Configurations *****");
-    log.trace("blocks_in_memory: {}", blocks_in_memory);
-    log.trace("raw_read_perc: {}", raw_read_perc);
-    log.trace("raw_write_perc: {}", raw_write_perc);
-    log.trace("mixed_writes_perc: {}", mixed_writes_perc);
-    log.trace("mixed_reads_perc: {}", mixed_reads_perc);
-    log.trace("updates_perc: {}", updates_perc);
-    log.trace("short_range: {}", short_range);
-    log.trace("mid_range: {}", mid_range);
-    log.trace("long_range: {}", long_range);
-    log.trace("runs: {}", runs);
-    log.trace("repeat: {}", repeat);
-    log.trace("seed: {}", seed);
-    log.trace("num_threads: {}", num_threads);
-    log.trace("results_csv: {}", results_csv);
-    log.trace("results_log: {}", results_log);
-    log.trace("binary_input: {}", binary_input);
-    log.trace("validate: {}", validate);
-    log.trace("verbose: {}", verbose);
-    log.trace("files:");
+    log.trace("********** Configurations *****");
+    log.info("blocks_in_memory: {}", blocks_in_memory);
+    log.info("raw_read_perc: {}", raw_read_perc);
+    log.info("raw_write_perc: {}", raw_write_perc);
+    log.info("mixed_writes_perc: {}", mixed_writes_perc);
+    log.info("mixed_reads_perc: {}", mixed_reads_perc);
+    log.info("updates_perc: {}", updates_perc);
+    log.info("short_range: {}", short_range);
+    log.info("mid_range: {}", mid_range);
+    log.info("long_range: {}", long_range);
+    log.info("runs: {}", runs);
+    log.info("repeat: {}", repeat);
+    log.info("seed: {}", seed);
+    log.info("num_threads: {}", num_threads);
+    log.info("results_csv: {}", results_csv);
+    log.info("results_log: {}", results_log);
+    log.info("binary_input: {}", binary_input);
+    log.info("validate: {}", validate);
+    log.info("verbose: {}", verbose);
+    log.info("files:");
     for (const auto &file : files) {
-        log.trace("\t{}", file);
+        log.info("\t{}", file);
     }
 }
