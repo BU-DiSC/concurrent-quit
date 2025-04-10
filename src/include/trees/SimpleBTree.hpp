@@ -29,7 +29,16 @@ class BTree {
         std::numeric_limits<node_id_t>::max();
 
     friend std::ostream &operator<<(std::ostream &os, const BTree &tree) {
+        os << tree.size << ", " << +tree.height << ", " << tree.internal << ", "
+           << tree.leaves;
         return os;
+    }
+
+    std::unordered_map<std::string, uint64_t> get_stats() const {
+        return {{"size", size},
+                {"height", height},
+                {"internal", internal},
+                {"leaves", leaves}};
     }
 
     explicit BTree(BlockManager &m)
@@ -39,6 +48,7 @@ class BTree {
           height(1),
           size(0) {
         node_t leaf(manager.open_block(head_id), bp_node_type::LEAF);
+        leaves = 1;
         manager.mark_dirty(head_id);
         leaf.info->id = head_id;
         leaf.info->next_id = INVALID_NODE_ID;
@@ -129,6 +139,7 @@ class BTree {
         node_id_t left_node_id = manager.allocate();
         node_t root(manager.open_block(root_id));
         node_t left_node(manager.open_block(left_node_id));
+        ++internal;
         std::memcpy(left_node.info, root.info, BlockManager::block_size);
         left_node.info->id = left_node_id;
         manager.mark_dirty(left_node_id);
@@ -181,6 +192,7 @@ class BTree {
             node_id_t new_node_id = manager.allocate();
             node_t new_node(manager.open_block(new_node_id),
                             bp_node_type::INTERNAL);
+            ++internal;
             manager.mark_dirty(new_node_id);
             node.info->size = SPLIT_INTERNAL_POS;
             new_node.info->id = new_node_id;
@@ -256,6 +268,7 @@ class BTree {
         uint16_t split_leaf_pos = SPLIT_LEAF_POS;
         node_id_t new_leaf_id = manager.allocate();
         node_t new_leaf(manager.open_block(new_leaf_id), bp_node_type::LEAF);
+        ++leaves;
         manager.mark_dirty(new_leaf_id);
         new_leaf.info->id = new_leaf_id;
         new_leaf.info->next_id = leaf.info->next_id;
@@ -292,8 +305,11 @@ class BTree {
     BlockManager &manager;
     const node_id_t root_id;
     node_id_t head_id;
+
+    // general stats
     uint8_t height;
-    // not necessary but good to have
     uint32_t size;
+    uint32_t leaves;
+    uint32_t internal;
 };
 }  // namespace SimpleBTree

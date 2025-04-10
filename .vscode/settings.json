@@ -77,10 +77,23 @@
         "typeinfo": "cpp",
         "valarray": "cpp",
         "variant": "cpp",
-        "codecvt": "cpp"
+        "codecvt": "cpp",
+        "cassert": "cpp",
+        "csignal": "cpp",
+        "regex": "cpp",
+        "*.ipp": "cpp"
     },
     "[cpp]": {
         // "editor.defaultFormatter": "ms-vscode.cpptools"
         "editor.defaultFormatter": "xaver.clang-format"
     },
+    "clang-format.fallbackStyle": "Google",
+    "C_Cpp.default.cppStandard": "c++20",
+    "C_Cpp.inlayHints.autoDeclarationTypes.enabled": true,
+    "C_Cpp.inlayHints.parameterNames.enabled": true,
+    "C_Cpp.inlayHints.referenceOperator.enabled": true,
+    "C_Cpp.codeAnalysis.clangTidy.enabled": true,
+    "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
+    "C_Cpp.intelliSenseEngine": "Tag Parser",
+    "C_Cpp.workspaceParsingPriority": "low"
 }

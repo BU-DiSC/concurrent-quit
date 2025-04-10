@@ -8,8 +8,8 @@
 #include <ranges>
 #include <vector>
 
-#include "../BTreeNode.hpp"
-#include "../MemoryBlockManager.hpp"
+#include "BTreeNode.hpp"
+#include "MemoryBlockManager.hpp"
 
 namespace QuITBTree {
 
@@ -66,14 +66,13 @@ class BTree {
         fp_path[0] = fp_id;
         fp_min = {};
         fp_max = {};
-        ctr_fp = 0;
+        ctr_fast = 0;
 
         dist = cmp;
         lol_prev_id = INVALID_NODE_ID;
         lol_prev_min = {};
         lol_prev_size = 0;
         lol_size = 0;
-        ctr_split = 0;
         ctr_iqr = 0;
         ctr_soft = 0;
 
@@ -83,10 +82,10 @@ class BTree {
         root.info->next_id = root_id;
         root.info->size = 0;
 
-        ctr_size = 0;
-        ctr_depth = 1;
-        ctr_internal = 0;
-        ctr_leaves = 1;
+        size = 0;
+        height = 1;
+        internal = 0;
+        leaves = 1;
 
         ctr_redistribute = 0;
     }
@@ -109,7 +108,7 @@ class BTree {
 
         if ((fp_id == head_id || fp_min <= key) &&
             (fp_id == tail_id || key < fp_max)) {
-            ctr_fp++;
+            ctr_fast++;
             leaf.load(manager.open_block(fp_id));
 
             life.success();
@@ -204,12 +203,22 @@ class BTree {
     bool contains(const key_type &key) const { return get(key).has_value(); }
 
     friend std::ostream &operator<<(std::ostream &os, const BTree &tree) {
-        os << tree.ctr_size << ", " << +tree.ctr_depth << ", "
-           << tree.ctr_internal << ", " << tree.ctr_leaves << ", "
-           << tree.ctr_redistribute << ", " << tree.ctr_split << ", "
-           << tree.ctr_iqr << ", " << tree.ctr_soft << ", " << tree.ctr_hard
-           << ", " << tree.ctr_fp;
+        os << tree.size << ", " << +tree.height << ", " << tree.internal << ", "
+           << tree.leaves << ", " << tree.ctr_fast << ", "
+           << tree.ctr_redistribute << ", " << tree.ctr_soft << ", "
+           << tree.ctr_hard;
         return os;
+    }
+
+    std::unordered_map<std::string, uint64_t> get_stats() const {
+        return {{"size", size},
+                {"height", height},
+                {"internal", internal},
+                {"leaves", leaves},
+                {"fast_inserts", ctr_fast},
+                {"redistribute", ctr_redistribute},
+                {"soft_resets", ctr_soft},
+                {"hard_resets", ctr_hard}};
     }
 
     bool top_insert(const key_type &key, const value_type &value) {
@@ -224,6 +233,7 @@ class BTree {
         node_id_t left_node_id = manager.allocate();
         node_t root;
         root.load(manager.open_block(root_id));
+        ++internal;
         node_t left_node;
         left_node.load(manager.open_block(left_node_id));
         std::memcpy(left_node.info, root.info, 4096);
@@ -244,23 +254,21 @@ class BTree {
             head_id = left_node_id;
         }
 
-        if (fp_path[ctr_depth - 1] == root_id) {
+        if (fp_path[height - 1] == root_id) {
             if (fp_id == root_id) {
                 fp_id = left_node_id;
             }
-            fp_path[ctr_depth - 1] = left_node_id;
+            fp_path[height - 1] = left_node_id;
         }
-        fp_path[ctr_depth] = root_id;
+        fp_path[height] = root_id;
 
-        ctr_depth++;
-
-        ctr_internal++;
+        height++;
     }
 
     key_type find_leaf(node_t &node, path_t &path, const key_type &key) const {
         key_type leaf_max = {};
         node_id_t child_id = root_id;
-        for (uint8_t i = ctr_depth - 1; i > 0; --i) {
+        for (uint8_t i = height - 1; i > 0; --i) {
             path[i] = child_id;
             node.load(manager.open_block(child_id));
 
@@ -279,7 +287,7 @@ class BTree {
     void update_internal(const path_t &path, const key_type &old_key,
                          const key_type &new_key) {
         node_t node;
-        for (uint8_t i = 1; i < ctr_depth; i++) {
+        for (uint8_t i = 1; i < height; i++) {
             node_id_t node_id = path[i];
             node.load(manager.open_block(node_id));
 
@@ -295,7 +303,7 @@ class BTree {
     void internal_insert(const path_t &path, key_type key, node_id_t child_id,
                          uint16_t split_pos) {
         node_t node;
-        for (uint8_t i = 1; i < ctr_depth; i++) {
+        for (uint8_t i = 1; i < height; i++) {
             node_id_t node_id = path[i];
             node.load(manager.open_block(node_id));
 
@@ -316,7 +324,7 @@ class BTree {
             node_id_t new_node_id = manager.allocate();
             node_t new_node(manager.open_block(new_node_id), INTERNAL);
             manager.mark_dirty(new_node_id);
-            ctr_internal++;
+            ++internal;
 
             node.info->size = split_pos;
             new_node.info->id = new_node_id;
@@ -435,7 +443,7 @@ class BTree {
             return false;
         }
 
-        ctr_size++;
+        size++;
         if (leaf.info->size < node_t::leaf_capacity) {
             std::memmove(leaf.keys + index + 1, leaf.keys + index,
                          (leaf.info->size - index) * sizeof(key_type));
@@ -488,7 +496,7 @@ class BTree {
         node_id_t new_leaf_id = manager.allocate();
         node_t new_leaf(manager.open_block(new_leaf_id), LEAF);
         manager.mark_dirty(new_leaf_id);
-        ctr_leaves++;
+        ++leaves;
         leaf.info->size = split_leaf_pos;
         new_leaf.info->id = new_leaf_id;
         new_leaf.info->next_id = leaf.info->next_id;
@@ -525,7 +533,6 @@ class BTree {
         }
 
         if (leaf.info->id == fp_id) {
-            ctr_split++;
             if (lol_move) {
                 ctr_iqr++;
 
@@ -574,14 +581,13 @@ class BTree {
     uint16_t lol_prev_size;
     uint16_t lol_size;
 
-    uint32_t ctr_size;
-    uint8_t ctr_depth;
-    uint32_t ctr_internal;
-    uint32_t ctr_leaves;
+    uint32_t size;
+    uint8_t height;
+    uint32_t internal;
+    uint32_t leaves;
 
-    uint32_t ctr_fp;
+    uint32_t ctr_fast;
 
-    uint32_t ctr_split;
     uint32_t ctr_iqr;
     uint32_t ctr_soft;
 

@@ -12,5 +12,7 @@ REPEAT = 1
 SEED = 1234
 NUM_THREADS = 1
 RESULTS_FILE = "results.csv"
+RESULTS_LOG = "results.log"
 BINARY_INPUT = true
 VALIDATE = false
+VERBOSE = true

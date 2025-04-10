@@ -1,6 +1,6 @@
 #pragma once
 
-namespace sort_utils {
+namespace utils::sort {
 
 template <typename key_type, typename value_type>
 void heapify(key_type *keys, value_type *values, int n, int i, int left) {
@@ -78,4 +78,4 @@ void introsort(key_type *keys, value_type *values, int left, int right,
     introsort(keys, values, partition_index + 1, right, depth_limit - 1);
 }
 
-}  // namespace sort_utils
+}  // namespace utils::sort
