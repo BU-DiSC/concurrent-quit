@@ -398,8 +398,8 @@ class BTree {
         auto start = std::chrono::high_resolution_clock::now();
 
         int depth_limit = 2 * std::log2(leaf.info->size);
-        sort_utils::introsort(leaf.keys, leaf.values, 0, leaf.info->size - 1,
-                              depth_limit);
+        utils::sort::introsort(leaf.keys, leaf.values, 0, leaf.info->size - 1,
+                               depth_limit);
 
         auto end = std::chrono::high_resolution_clock::now();
         sort_time +=
