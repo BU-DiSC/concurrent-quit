@@ -3,6 +3,8 @@
 #include <span>
 #include <string>
 
+#include "utils/logging.hpp"
+
 struct Config {
     unsigned blocks_in_memory = 2000000;
     unsigned raw_read_perc = 0;
@@ -18,11 +20,14 @@ struct Config {
     unsigned seed = 1234;
     unsigned num_threads = 1;
     std::string results_csv = "results.csv";
+    std::string results_log = "results.log";
     bool binary_input = true;
     bool validate = false;
+    bool verbose = false;
     std::span<char *> files;
 
     void parse(const char *file);
     void parse(int argc, char **argv);
     void print();
+    void print(utils::logging::Logger &log);
 };

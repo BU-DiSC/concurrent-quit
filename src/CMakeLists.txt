@@ -38,4 +38,5 @@ foreach(TREE_TYPE IN LISTS TREE_TYPES)
     endif()
 
     target_include_directories(${TARGET_NAME} PUBLIC include)
+    target_link_libraries(${TARGET_NAME} PUBLIC spdlog::spdlog)
 endforeach()
