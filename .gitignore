@@ -4,3 +4,4 @@ results/
 *.csv
 .vscode/c_cpp_properties.json
 *.cache/*
+**__pycache__**
