@@ -18,19 +18,26 @@ def main(args):
     logger.info(f"#. experiments: {len(experiments)}")
 
     # Create the database connection
-    # db = IndexBenchDB(args.db_path)
+    db = IndexBenchDB(args.db_path)
 
     tree_analysis = PyTreeAnalysis()
 
     for executable, file in experiments: 
         logger.info(f"Running {executable} on {file}")
-        stats = tree_analysis.run_single_tree_analysis(
+        args, results = tree_analysis.run_single_tree_analysis(
             executable_path=executable,
             input_files=[os.path.join(args.input_dir, file)],
             config_file_path=None
         )
-        tree_analysis.log_stats(stats)
-        break
+        tree_analysis.log_stats(results)
+        executable_name = os.path.basename(executable)
+        db.insert_row(
+            index_type=executable_name,
+            workload_file=file,
+            tree_analysis_args=args,
+            tree_analysis_results=results
+        ) 
+    
         
 
 

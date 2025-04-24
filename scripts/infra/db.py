@@ -78,7 +78,7 @@ class IndexBenchDB:
                 soft_resets, hard_resets,
                 fast_inserts_fail, sort
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?);
+                    ?, ?, ?, ?, ?, ?, ?);
         """, (
             timestamp, index_type, workload_file,
             tree_analysis_results.N, tree_analysis_results.K, tree_analysis_results.L,
@@ -105,7 +105,7 @@ class IndexBenchDB:
                 num_threads, results_csv, results_log,
                 binary_input, validate, verbose,
                 input_file
-            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?);
+            ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ? , ?);
         """, (
             last_id, tree_analysis_args.blocks_in_memory,
             tree_analysis_args.raw_read_perc, tree_analysis_args.raw_write_perc,

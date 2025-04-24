@@ -5,3 +5,4 @@ results/
 .vscode/c_cpp_properties.json
 *.cache/*
 **__pycache__**
+*_db

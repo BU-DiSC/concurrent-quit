@@ -86,12 +86,71 @@ class TreeAnalysisRegex:
         # workload info regex
         self.workload_regex = re.compile(r".*/(\d+)_(\d+)_(\d+)$")
 
+        # args regex
+        self.blocks_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] blocks_in_memory: (\d+)", flags)
+        self.raw_read_perc_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] raw_read_perc: (\d+)", flags)
+        self.raw_write_perc_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] raw_write_perc: (\d+)", flags)
+        self.mixed_writes_perc_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] mixed_writes_perc: (\d+)", flags)
+        self.mixed_reads_perc_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] mixed_reads_perc: (\d+)", flags)
+        self.updates_perc_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] updates_perc: (\d+)", flags)
+        self.short_range_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] short_range: (\d+)", flags)
+        self.mid_range_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] mid_range: (\d+)", flags)
+        self.long_range_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] long_range: (\d+)", flags)
+        self.runs_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] runs: (\d+)", flags)
+        self.repeat_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] repeat: (\d+)", flags)
+        self.seed_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] seed: (\d+)", flags)
+        self.num_threads_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] num_threads: (\d+)", flags)
+        self.results_csv_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] results_csv: (.*)", flags)
+        self.results_log_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] results_log: (.*)", flags)
+        self.binary_input_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] binary_input: (true|false)", flags)
+        self.validate_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] validate: (true|false)", flags)
+        self.verbose_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] verbose: (true|false)", flags)
+
 
 class PyTreeAnalysis: 
     def __init__(self) -> None: 
         self.tree_analysis_regex = TreeAnalysisRegex()
 
     def parse_results(self, process_results: str) -> TreeAnalysisResults:
+        args = TreeAnalysisArgs()
+        # parse the args
+        blocks = self.tree_analysis_regex.blocks_regex.search(process_results)
+        args.blocks_in_memory = int(blocks.group(1)) if blocks else 0
+        raw_read_perc = self.tree_analysis_regex.raw_read_perc_regex.search(process_results)
+        args.raw_read_perc = int(raw_read_perc.group(1)) if raw_read_perc else 0
+        raw_write_perc = self.tree_analysis_regex.raw_write_perc_regex.search(process_results)
+        args.raw_write_perc = int(raw_write_perc.group(1)) if raw_write_perc else 0
+        mixed_writes_perc = self.tree_analysis_regex.mixed_writes_perc_regex.search(process_results)
+        args.mixed_writes_perc = int(mixed_writes_perc.group(1)) if mixed_writes_perc else 0
+        mixed_reads_perc = self.tree_analysis_regex.mixed_reads_perc_regex.search(process_results)
+        args.mixed_reads_perc = int(mixed_reads_perc.group(1)) if mixed_reads_perc else 0
+        updates_perc = self.tree_analysis_regex.updates_perc_regex.search(process_results)
+        args.updates_perc = int(updates_perc.group(1)) if updates_perc else 0
+        short_range = self.tree_analysis_regex.short_range_regex.search(process_results)
+        args.short_range = int(short_range.group(1)) if short_range else 0
+        mid_range = self.tree_analysis_regex.mid_range_regex.search(process_results)
+        args.mid_range = int(mid_range.group(1)) if mid_range else 0
+        long_range = self.tree_analysis_regex.long_range_regex.search(process_results)
+        args.long_range = int(long_range.group(1)) if long_range else 0
+        runs = self.tree_analysis_regex.runs_regex.search(process_results)
+        args.runs = int(runs.group(1)) if runs else 0
+        repeat = self.tree_analysis_regex.repeat_regex.search(process_results)
+        args.repeat = int(repeat.group(1)) if repeat else 0
+        seed = self.tree_analysis_regex.seed_regex.search(process_results)
+        args.seed = int(seed.group(1)) if seed else 0
+        num_threads = self.tree_analysis_regex.num_threads_regex.search(process_results)
+        args.num_threads = int(num_threads.group(1)) if num_threads else 0
+        results_csv = self.tree_analysis_regex.results_csv_regex.search(process_results)
+        args.results_csv = results_csv.group(1) if results_csv else ""
+        results_log = self.tree_analysis_regex.results_log_regex.search(process_results)
+        args.results_log = results_log.group(1) if results_log else ""
+        binary_input = self.tree_analysis_regex.binary_input_regex.search(process_results)
+        args.binary_input = binary_input.group(1).lower() == "true" if binary_input else False
+        validate = self.tree_analysis_regex.validate_regex.search(process_results)
+        args.validate = validate.group(1).lower() == "true" if validate else False
+        verbose = self.tree_analysis_regex.verbose_regex.search(process_results)
+        args.verbose = verbose.group(1).lower() == "true" if verbose else False
+
         results = TreeAnalysisResults()
 
         preload_time = self.tree_analysis_regex.preload_time_regex.search(process_results)
@@ -148,7 +207,7 @@ class PyTreeAnalysis:
             print("Workload info not found in the results")
             logging.error("Workload info not found in the results")
             results.N, results.K, results.L = 0, 0, 0
-        return results
+        return args, results
     
     def run_single_tree_analysis(self, executable_path: str, 
                                  input_files: list, 
@@ -201,9 +260,9 @@ class PyTreeAnalysis:
         logging.debug(f"{process_results}")
 
         # parse the results
-        results = self.parse_results(process_results)
+        args, results = self.parse_results(process_results)
 
-        return results
+        return args, results
     
     def log_stats(self, results: TreeAnalysisResults):
         logging.info(f"Stats:")
