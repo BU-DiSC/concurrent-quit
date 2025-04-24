@@ -24,7 +24,7 @@ def main(args):
 
     for executable, file in experiments: 
         logger.info(f"Running {executable} on {file}")
-        args, results = tree_analysis.run_single_tree_analysis(
+        res_args, results = tree_analysis.run_single_tree_analysis(
             executable_path=executable,
             input_files=[os.path.join(args.input_dir, file)],
             config_file_path=None
@@ -34,10 +34,10 @@ def main(args):
         db.insert_row(
             index_type=executable_name,
             workload_file=file,
-            tree_analysis_args=args,
+            tree_analysis_args=res_args,
             tree_analysis_results=results
         ) 
-    
+
         
 
 

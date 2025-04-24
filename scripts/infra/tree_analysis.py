@@ -83,8 +83,8 @@ class TreeAnalysisRegex:
         self.fast_inserts_fail_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] fast inserts fail: (\d+)", flags)
         self.sort_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] sort: (\d+)", flags)
 
-        # workload info regex
-        self.workload_regex = re.compile(r".*/(\d+)_(\d+)_(\d+)$")
+        # workload info regex (match last N_K_L pattern anywhere in the log)
+        self.workload_regex = re.compile(r"(\d+)_(\d+)_(\d+)(?!.*\d+_\d+_\d+)")
 
         # args regex
         self.blocks_regex = re.compile(r"\[[0-9 :.-]+\] \[.*?\] \[info\] blocks_in_memory: (\d+)", flags)
