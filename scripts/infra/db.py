@@ -16,6 +16,7 @@ class IndexBenchDB:
                 N INTEGER, 
                 K INTEGER,
                 L INTEGER,
+                threads INTEGER,
                 preload_time INTEGER,
                 raw_writes_time INTEGER,
                 raw_reads_time INTEGER,
@@ -69,7 +70,7 @@ class IndexBenchDB:
         timestamp = datetime.now(timezone.utc)
         cursor.execute("""
             INSERT INTO index_bench (
-                timestamp, index_type, workload_file, N, K, L,
+                timestamp, index_type, workload_file, N, K, L, threads,
                 preload_time, raw_writes_time, raw_reads_time,
                 mixed_time, updates_time, short_range_time,
                 mid_range_time, long_range_time,
@@ -78,11 +79,11 @@ class IndexBenchDB:
                 soft_resets, hard_resets,
                 fast_inserts_fail, sort
             ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?,
-                    ?, ?, ?, ?, ?, ?, ?);
+                    ?, ?, ?, ?, ?, ?, ?, ?);
         """, (
             timestamp, index_type, workload_file,
             tree_analysis_results.N, tree_analysis_results.K, tree_analysis_results.L,
-            tree_analysis_results.preload_time, tree_analysis_results.raw_writes_time,
+            tree_analysis_results.threads, tree_analysis_results.preload_time, tree_analysis_results.raw_writes_time,
             tree_analysis_results.raw_reads_time, tree_analysis_results.mixed_time,
             tree_analysis_results.updates_time, tree_analysis_results.short_range_time,
             tree_analysis_results.mid_range_time, tree_analysis_results.long_range_time,

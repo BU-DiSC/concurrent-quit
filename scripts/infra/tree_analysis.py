@@ -56,6 +56,7 @@ class TreeAnalysisResults:
     N: int = 0
     K: int = 0
     L: int = 0
+    threads: int = 1
     
 
 @dataclass 
@@ -199,6 +200,8 @@ class PyTreeAnalysis:
         sort = self.tree_analysis_regex.sort_regex.search(process_results)
         results.sort = int(sort.group(1)) if sort else 0
 
+        results.threads = args.num_threads
+
         # workload info
         workload = self.tree_analysis_regex.workload_regex.search(process_results)
         if workload: 
@@ -269,6 +272,7 @@ class PyTreeAnalysis:
         logging.info(f"N: {results.N}")
         logging.info(f"K: {results.K}")
         logging.info(f"L: {results.L}")
+        logging.info(f"Threads: {results.threads}")
         logging.info(f"Preload time: {results.preload_time}")
         logging.info(f"Raw writes time: {results.raw_writes_time}")
         logging.info(f"Raw reads time: {results.raw_reads_time}")
