@@ -6,3 +6,4 @@ scripts/workloads/
 **__pycache__**
 *.ipynb_checkpoints
 *_db
+scripts/concurrent-workloads/
