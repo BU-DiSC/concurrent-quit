@@ -227,7 +227,7 @@ class PyTreeAnalysis:
                 config.raw_read_perc = config_data["RAW_READ_PERCENTAGE"]
                 config.raw_write_perc = config_data["RAW_WRITE_PERCENTAGE"]
                 config.mixed_writes_perc = config_data["MIXED_WRITES_PERCENTAGE"]
-                config.mixed_reads_perc = config_data["MIXED_READS_PERCENTAGE"]
+                config.mixed_reads_perc = config_data["MIXED_READ_PERCENTAGE"]
                 config.updates_perc = config_data["UPDATES_PERCENTAGE"]
                 config.short_range = config_data["SHORT_RANGE_QUERIES"]
                 config.mid_range = config_data["MID_RANGE_QUERIES"]
