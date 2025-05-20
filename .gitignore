@@ -1,6 +1,9 @@
 *build*
 scripts/workloads/
-results/
 *.csv
 .vscode/c_cpp_properties.json
 *.cache/*
+**__pycache__**
+*.ipynb_checkpoints
+*_db
+scripts/concurrent-workloads/
