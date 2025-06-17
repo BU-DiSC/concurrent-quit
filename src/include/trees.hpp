@@ -1,6 +1,6 @@
 #pragma once
-
 #include "trees/ConcurrentQuITBTree.hpp"
+#include "trees/ConcurrentQuITBTreeAtomic.hpp"
 #include "trees/ConcurrentSimpleBTree.hpp"
 #include "trees/ConcurrentTailBTree.hpp"
 #include "trees/LILBTree.hpp"
