@@ -464,6 +464,13 @@ class BTree {
         }
     }
 
+    /*
+        Function to determine the split position of the leaf node
+        Requires (from caller):
+            (1) leaf to be locked
+            (2) fp_mutex to be locked
+            (3) fp_meta_mutex to be locked
+    */
     uint16_t determine_split_pos(node_t &leaf, uint16_t index, bool &fp_move) {
         uint16_t split_leaf_pos = SPLIT_LEAF_POS;
         // requires leaf, fp_mutex and fp_meta_mutex to be locked by caller
@@ -492,6 +499,7 @@ class BTree {
                 }
             }
         }
+        return split_leaf_pos;
     }
 
     void split_insert(node_t &leaf, uint16_t index, const path_t &path,
@@ -758,6 +766,7 @@ class BTree {
             if (!reset) {
                 // not resetting the fast-path so it's metadata can be unlocked
                 fp_lock.unlock();
+                fp_meta_lock.unlock();
             }
             // find the leaf node to insert into
             find_leaf_exclusive(leaf, key, leaf_max);
