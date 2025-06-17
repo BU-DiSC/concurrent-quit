@@ -393,22 +393,20 @@ class BTree {
         leaf.values[index] = value;
         ++leaf.info->size;
 
-        // if (fast) {
-        //     if (leaf.info->id == fp_id) {
-        //         ++fp_size;
-        //     } else if (leaf.info->next_id == fp_id) {
-        //         // WARN: Check if this block is ever accessed
-        //         fp_prev_id = leaf.info->id;
-        //         fp_prev_min = leaf.keys[0];
-        //         fp_prev_size = leaf.info->size;
-        //     }
-        // }
-
-        if (update_associated_metadata) {
-            // requires fp_mutex and fp_meta_mutex to be locked
-            // and unlocked by caller
-            update_associated_metadata(leaf);
+        if (fast) {
+            if (leaf.info->next_id == fp_metadata.fp_id) {
+                // WARN: Check if this block is ever accessed
+                fp_prev_metadata.fp_prev_id = leaf.info->id;
+                fp_prev_metadata.fp_prev_min = leaf.keys[0];
+                fp_prev_metadata.fp_prev_size = leaf.info->size;
+            }
         }
+
+        // if (update_associated_metadata) {
+        //     // requires fp_mutex and fp_meta_mutex to be locked
+        //     // and unlocked by caller
+        //     update_associated_metadata(leaf);
+        // }
 
         mutexes[leaf.info->id].unlock();
         return true;
@@ -695,7 +693,8 @@ class BTree {
         return true;
     }
 
-    void insert2(const key_type &key, const value_type &value) {
+    void insert(const key_type &key, const value_type &value) {
+        // std::cout << "Inserting key: " << key << std::endl;
         path_t path;
         uint16_t index;
         node_t leaf;
@@ -704,6 +703,7 @@ class BTree {
 
         // lock the fast-path to check if we can use it
         std::unique_lock fp_lock(fp_mutex);  // scoped lock
+        std::unique_lock fp_meta_lock(fp_meta_mutex);
         if ((fp_metadata.fp_id == head_id || fp_metadata.fp_min <= key)
 
             && (fp_metadata.fp_id == tail_id || key < fp_metadata.fp_max)) {
@@ -712,7 +712,6 @@ class BTree {
             life.success();
             mutexes[fp_metadata.fp_id]
                 .lock();  // will be unlocked in leaf_insert()
-            assert(leaf.info->size == fp_metadata.fp_size);
             leaf.load(manager.open_block(fp_metadata.fp_id));
 
             if (fp_metadata.fp_size < node_t::leaf_capacity) {
@@ -738,10 +737,11 @@ class BTree {
                 ++ctr_fast;
                 return;  // also unlocks fp_mutex
             }
+            // std::cout << "in else block of fp" << std::endl;
             // else block -> fast-path is will be at capacity needs to split
 
-            // lock fast-path meta-mutex as it will be updated upon split
-            std::unique_lock fp_meta_lock(fp_meta_mutex);
+            // // lock fast-path meta-mutex as it will be updated upon split
+            // std::unique_lock fp_meta_lock(fp_meta_mutex);
 
             // check if we need to sort the fast-path
             if constexpr (LEAF_APPENDS_ENABLED) {
@@ -770,18 +770,20 @@ class BTree {
             // fp_lock and fp_meta_lock will be unlocked when going out of scope
             return;
         } else {
+            // std::cout << "non fast insert entered" << std::endl;
             // does not qualify for fast-path
-            std::unique_lock fp_meta_lock(fp_meta_mutex);
+            // std::unique_lock fp_meta_lock(fp_meta_mutex);
             fast = false;
             bool reset = life.failure();
             if (!reset) {
                 // not resetting the fast-path so it's metadata can be unlocked
                 fp_lock.unlock();
-                fp_meta_lock.unlock();
             }
             // find the leaf node to insert into
             find_leaf_exclusive(leaf, key, leaf_max);
             if (reset) {
+                ++ctr_hard;
+                // sets fast to true as we reset the fast-path
                 fast = reset_fast_path(
                     leaf,
                     leaf_max);  // reset_fast_path() sorts the
@@ -802,8 +804,10 @@ class BTree {
                 return;  // also unlocks fp_meta_mutex + fp_mutex
             }
             mutexes[leaf.info->id].unlock();
-
             find_leaf_exclusive(leaf, path, key, leaf_max);
+            if (leaf.info->id != fp_prev_metadata.fp_prev_id) {
+                // can unlock fp_meta_mutex here as we are not updating
+            }
             index = leaf.value_slot(key);
             split_insert(leaf, index, path, key, value, fast);
             // will unlock fp_meta_mutex when going out of scope
@@ -811,118 +815,119 @@ class BTree {
         // will unlock fp_mutex when going out of scope
     }
 
-    void insert(const key_type &key, const value_type &value) {
-        path_t path;
-        uint16_t index;
-        node_t leaf;
+    // void insert(const key_type &key, const value_type &value) {
+    //     path_t path;
+    //     uint16_t index;
+    //     node_t leaf;
 
-        bool fast;
-        key_type leaf_max{};
+    //     bool fast;
+    //     key_type leaf_max{};
 
-        std::unique_lock fp_lock(fp_mutex);
+    //     std::unique_lock fp_lock(fp_mutex);
 
-        if ((fp_metadata.fp_id == head_id || fp_metadata.fp_min <= key)
+    //     if ((fp_metadata.fp_id == head_id || fp_metadata.fp_min <= key)
 
-            && (fp_metadata.fp_id == tail_id || key < fp_metadata.fp_max)
+    //         && (fp_metadata.fp_id == tail_id || key < fp_metadata.fp_max)
 
-        ) {
-            fast = true;
+    //     ) {
+    //         fast = true;
 
-            mutexes[fp_metadata.fp_id].lock();
-            leaf.load(manager.open_block(fp_metadata.fp_id));
+    //         mutexes[fp_metadata.fp_id].lock();
+    //         leaf.load(manager.open_block(fp_metadata.fp_id));
 
-            life.success();
+    //         life.success();
 
-            if constexpr (LEAF_APPENDS_ENABLED) {
-                if (leaf_insert(leaf, leaf.info->size, key, value, true)) {
-                    ++ctr_fast;
-                    return;
-                }
-            } else {
-                std::chrono::high_resolution_clock::time_point start =
-                    std::chrono::high_resolution_clock::now();
-                index = leaf.value_slot(key);
+    //         if constexpr (LEAF_APPENDS_ENABLED) {
+    //             if (leaf_insert(leaf, leaf.info->size, key, value, true)) {
+    //                 ++ctr_fast;
+    //                 return;
+    //             }
+    //         } else {
+    //             std::chrono::high_resolution_clock::time_point start =
+    //                 std::chrono::high_resolution_clock::now();
+    //             index = leaf.value_slot(key);
 
-                std::chrono::high_resolution_clock::time_point end =
-                    std::chrono::high_resolution_clock::now();
-                find_leaf_slot_time +=
-                    std::chrono::duration_cast<std::chrono::nanoseconds>(end -
-                                                                         start)
-                        .count();
-                if (leaf_insert(leaf, index, key, value, true)) {
-                    ++ctr_fast;
-                    return;
-                }
-            }
+    //             std::chrono::high_resolution_clock::time_point end =
+    //                 std::chrono::high_resolution_clock::now();
+    //             find_leaf_slot_time +=
+    //                 std::chrono::duration_cast<std::chrono::nanoseconds>(end
+    //                 -
+    //                                                                      start)
+    //                     .count();
+    //             if (leaf_insert(leaf, index, key, value, true)) {
+    //                 ++ctr_fast;
+    //                 return;
+    //             }
+    //         }
 
-            if constexpr (LEAF_APPENDS_ENABLED) {
-                if (!fp_sorted) {
-                    sort_leaf(leaf);
-                    fp_sorted = true;
-                    ++ctr_sort;
-                }
-            }
+    //         if constexpr (LEAF_APPENDS_ENABLED) {
+    //             if (!fp_sorted) {
+    //                 sort_leaf(leaf);
+    //                 fp_sorted = true;
+    //                 ++ctr_sort;
+    //             }
+    //         }
 
-            ++ctr_fast_fail;
-            mutexes[fp_metadata.fp_id].unlock();
-            find_leaf_exclusive(leaf, path, key, leaf_max);
-        } else {
-            fast = false;
-            bool reset = life.failure();
-            if (!reset) {
-                fp_lock.unlock();
-            }
+    //         ++ctr_fast_fail;
+    //         mutexes[fp_metadata.fp_id].unlock();
+    //         find_leaf_exclusive(leaf, path, key, leaf_max);
+    //     } else {
+    //         fast = false;
+    //         bool reset = life.failure();
+    //         if (!reset) {
+    //             fp_lock.unlock();
+    //         }
 
-            find_leaf_exclusive(leaf, key, leaf_max);
+    //         find_leaf_exclusive(leaf, key, leaf_max);
 
-            if (reset) {
-                ++ctr_hard;
-                if constexpr (LEAF_APPENDS_ENABLED) {
-                    if (!fp_sorted) {
-                        mutexes[fp_metadata.fp_id].lock();
-                        node_t fp_leaf(manager.open_block(fp_metadata.fp_id),
-                                       LEAF);
-                        sort_leaf(fp_leaf);
-                        fp_sorted = true;
-                        ++ctr_sort;
-                        manager.mark_dirty(fp_metadata.fp_id);
-                        mutexes[fp_metadata.fp_id].unlock();
-                    }
-                }
-                // now update associated metadata
-                if (fp_metadata.fp_id != tail_id &&
-                    leaf.keys[0] == fp_metadata.fp_max) {
-                    fp_prev_metadata.fp_prev_id = fp_metadata.fp_id;
-                    fp_prev_metadata.fp_prev_size = fp_metadata.fp_size;
-                    fp_prev_metadata.fp_prev_min = fp_metadata.fp_min;
-                } else {
-                    fp_prev_metadata.fp_prev_id = INVALID_NODE_ID;
-                }
-                fp_metadata.fp_id = leaf.info->id;
-                fp_metadata.fp_min = leaf.keys[0];
-                fp_metadata.fp_max = leaf_max;
-                fp_metadata.fp_size = leaf.info->size;
-                life.reset();
-                fast = true;
-            }
+    //         if (reset) {
+    //             ++ctr_hard;
+    //             if constexpr (LEAF_APPENDS_ENABLED) {
+    //                 if (!fp_sorted) {
+    //                     mutexes[fp_metadata.fp_id].lock();
+    //                     node_t fp_leaf(manager.open_block(fp_metadata.fp_id),
+    //                                    LEAF);
+    //                     sort_leaf(fp_leaf);
+    //                     fp_sorted = true;
+    //                     ++ctr_sort;
+    //                     manager.mark_dirty(fp_metadata.fp_id);
+    //                     mutexes[fp_metadata.fp_id].unlock();
+    //                 }
+    //             }
+    //             // now update associated metadata
+    //             if (fp_metadata.fp_id != tail_id &&
+    //                 leaf.keys[0] == fp_metadata.fp_max) {
+    //                 fp_prev_metadata.fp_prev_id = fp_metadata.fp_id;
+    //                 fp_prev_metadata.fp_prev_size = fp_metadata.fp_size;
+    //                 fp_prev_metadata.fp_prev_min = fp_metadata.fp_min;
+    //             } else {
+    //                 fp_prev_metadata.fp_prev_id = INVALID_NODE_ID;
+    //             }
+    //             fp_metadata.fp_id = leaf.info->id;
+    //             fp_metadata.fp_min = leaf.keys[0];
+    //             fp_metadata.fp_max = leaf_max;
+    //             fp_metadata.fp_size = leaf.info->size;
+    //             life.reset();
+    //             fast = true;
+    //         }
 
-            index = leaf.value_slot(key);
-            if (leaf_insert(leaf, index, key, value, fast)) {
-                return;
-            }
+    //         index = leaf.value_slot(key);
+    //         if (leaf_insert(leaf, index, key, value, fast)) {
+    //             return;
+    //         }
 
-            mutexes[leaf.info->id].unlock();
-            find_leaf_exclusive(leaf, path, key, leaf_max);
-        }
-        index = leaf.value_slot(key);
-        if (leaf_insert(leaf, index, key, value, fast)) {
-            for (const auto &parent_id : path) {
-                mutexes[parent_id].unlock();
-            }
-            return;
-        }
-        split_insert(leaf, index, path, key, value, fast);
-    }
+    //         mutexes[leaf.info->id].unlock();
+    //         find_leaf_exclusive(leaf, path, key, leaf_max);
+    //     }
+    //     index = leaf.value_slot(key);
+    //     if (leaf_insert(leaf, index, key, value, fast)) {
+    //         for (const auto &parent_id : path) {
+    //             mutexes[parent_id].unlock();
+    //         }
+    //         return;
+    //     }
+    //     split_insert(leaf, index, path, key, value, fast);
+    // }
 
     uint32_t select_k(size_t count, const key_type &min_key) const {
         node_t leaf;
