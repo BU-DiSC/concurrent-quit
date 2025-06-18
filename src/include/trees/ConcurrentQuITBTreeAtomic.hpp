@@ -362,10 +362,14 @@ class BTree {
             fast_path_helper_metadata expected_metadata =
                 fp_prev_metadata.load();
             // atomically exchange metadata
-            do {
-                // Attempt to update the metadata
-            } while (!fp_prev_metadata.compare_exchange_strong(
-                expected_metadata, new_metadata));
+            // do {
+            //     // Attempt to update the metadata
+            // } while (!fp_prev_metadata.compare_exchange_strong(
+            //     expected_metadata, new_metadata));
+            while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
+                                                             new_metadata)) {
+                std::cout << "compare exchange failed 6" << std::endl;
+            }
         }
     }
 
@@ -425,10 +429,14 @@ class BTree {
                 fast_path_helper_metadata expected_metadata =
                     fp_prev_metadata.load();
                 // atomically exchange metadata
-                do {
-                    // Attempt to update the metadata
-                } while (!fp_prev_metadata.compare_exchange_strong(
-                    expected_metadata, new_metadata));
+                // do {
+                //     // Attempt to update the metadata
+                // } while (!fp_prev_metadata.compare_exchange_strong(
+                //     expected_metadata, new_metadata));
+                while (!fp_prev_metadata.compare_exchange_strong(
+                    expected_metadata, new_metadata)) {
+                    std::cout << "compare exchange failed" << std::endl;
+                }
             }
         }
 
@@ -607,9 +615,13 @@ class BTree {
                         fp_metadata.fp_id, fp_metadata.fp_min, leaf.info->size};
                     fast_path_helper_metadata expected_metadata =
                         fp_prev_metadata.load();
-                    do {
-                    } while (!fp_prev_metadata.compare_exchange_strong(
-                        expected_metadata, new_metadata));
+                    // do {
+                    // } while (!fp_prev_metadata.compare_exchange_strong(
+                    //     expected_metadata, new_metadata));
+                    while (!fp_prev_metadata.compare_exchange_strong(
+                        expected_metadata, new_metadata)) {
+                        std::cout << "compare exchange failed 2" << std::endl;
+                    }
                     fp_metadata.fp_id = new_leaf_id;
                     fp_metadata.fp_min = new_leaf.keys[0];
                     fp_metadata.fp_size = new_leaf.info->size;
@@ -626,9 +638,13 @@ class BTree {
                     new_leaf_id, new_leaf.keys[0], new_leaf.info->size};
                 fast_path_helper_metadata expected_metadata =
                     fp_prev_metadata.load();
-                do {
-                } while (!fp_prev_metadata.compare_exchange_strong(
-                    expected_metadata, new_metadata));
+                // do {
+                // } while (!fp_prev_metadata.compare_exchange_strong(
+                //     expected_metadata, new_metadata));
+                while (!fp_prev_metadata.compare_exchange_strong(
+                    expected_metadata, new_metadata)) {
+                    std::cout << "compare exchange failed 3" << std::endl;
+                }
             }
         }
 
@@ -721,17 +737,25 @@ class BTree {
                 fp_metadata.fp_id, fp_metadata.fp_min, fp_metadata.fp_size};
             fast_path_helper_metadata expected_metadata =
                 fp_prev_metadata.load();
-            do {
-            } while (!fp_prev_metadata.compare_exchange_strong(
-                expected_metadata, new_metadata));
+            // do {
+            // } while (!fp_prev_metadata.compare_exchange_strong(
+            //     expected_metadata, new_metadata));
+            while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
+                                                             new_metadata)) {
+                std::cout << "compare exchange failed 4" << std::endl;
+            }
         } else {
             // fp_prev_metadata.fp_prev_id = INVALID_NODE_ID;
             fast_path_helper_metadata new_metadata = {INVALID_NODE_ID, {}, 0};
             fast_path_helper_metadata expected_metadata =
                 fp_prev_metadata.load();
-            do {
-            } while (!fp_prev_metadata.compare_exchange_strong(
-                expected_metadata, new_metadata));
+            // do {
+            // } while (!fp_prev_metadata.compare_exchange_strong(
+            //     expected_metadata, new_metadata));
+            while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
+                                                             new_metadata)) {
+                std::cout << "compare exchange failed 5" << std::endl;
+            }
         }
         fp_metadata.fp_id = leaf.info->id;
         fp_metadata.fp_min = leaf.keys[0];

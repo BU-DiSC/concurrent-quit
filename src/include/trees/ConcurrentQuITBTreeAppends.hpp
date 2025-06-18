@@ -770,6 +770,7 @@ class BTree {
         } else {
             // does not qualify for fast-path
             // std::unique_lock fp_meta_lock(fp_meta_mutex);
+            bool unlocked_meta_lock = false;
             fast = false;
             bool reset = life.failure();
             if (!reset) {
@@ -800,11 +801,13 @@ class BTree {
                 }
                 return;  // also unlocks fp_meta_mutex + fp_mutex
             }
+            if (leaf.info->id != fp_prev_metadata.fp_prev_id &&
+                !unlocked_meta_lock) {
+                // can unlock fp_meta_mutex here as we are not updating
+                fp_meta_lock.unlock();
+            }
             mutexes[leaf.info->id].unlock();
             find_leaf_exclusive(leaf, path, key, leaf_max);
-            if (leaf.info->id != fp_prev_metadata.fp_prev_id) {
-                // can unlock fp_meta_mutex here as we are not updating
-            }
             index = leaf.value_slot(key);
             split_insert(leaf, index, path, key, value, fast);
             // will unlock fp_meta_mutex when going out of scope
