@@ -25,7 +25,7 @@ using namespace ConcurrentTailBTree;
 #elif defined(FOR_CONCURRENT_QUIT)
 using namespace ConcurrentQuITBTree;
 #elif defined(FOR_CONCURRENT_QUIT_APPENDS)
-using namespace ConcurrentQuITBTree;
+using namespace ConcurrentQuITBTreeAppends;
 #elif defined(FOR_CONCURRENT_QUIT_ATOMIC)
 using namespace ConcurrentQuITBTreeAtomic;
 #else
