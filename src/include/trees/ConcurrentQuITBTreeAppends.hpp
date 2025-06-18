@@ -702,12 +702,11 @@ class BTree {
 
         // lock the fast-path to check if we can use it
         std::unique_lock fp_lock(fp_mutex);  // scoped lock
-        std::unique_lock fp_meta_lock(fp_meta_mutex);
         if ((fp_metadata.fp_id == head_id || fp_metadata.fp_min <= key)
 
             && (fp_metadata.fp_id == tail_id || key < fp_metadata.fp_max)) {
             fast = true;
-
+            std::unique_lock fp_meta_lock(fp_meta_mutex);
             life.success();
             mutexes[fp_metadata.fp_id]
                 .lock();  // will be unlocked in leaf_insert()
@@ -738,9 +737,6 @@ class BTree {
             }
             // else block -> fast-path is will be at capacity needs to split
 
-            // // lock fast-path meta-mutex as it will be updated upon split
-            // std::unique_lock fp_meta_lock(fp_meta_mutex);
-
             // check if we need to sort the fast-path
             if constexpr (LEAF_APPENDS_ENABLED) {
                 if (!fp_sorted) {
@@ -769,8 +765,8 @@ class BTree {
             return;
         } else {
             // does not qualify for fast-path
-            // std::unique_lock fp_meta_lock(fp_meta_mutex);
-            bool unlocked_meta_lock = false;
+            ++ctr_fast_fail;
+            std::unique_lock fp_meta_lock(fp_meta_mutex);
             fast = false;
             bool reset = life.failure();
             if (!reset) {
@@ -801,13 +797,13 @@ class BTree {
                 }
                 return;  // also unlocks fp_meta_mutex + fp_mutex
             }
-            if (leaf.info->id != fp_prev_metadata.fp_prev_id &&
-                !unlocked_meta_lock) {
+
+            mutexes[leaf.info->id].unlock();
+            find_leaf_exclusive(leaf, path, key, leaf_max);
+            if (leaf.info->id != fp_prev_metadata.fp_prev_id) {
                 // can unlock fp_meta_mutex here as we are not updating
                 fp_meta_lock.unlock();
             }
-            mutexes[leaf.info->id].unlock();
-            find_leaf_exclusive(leaf, path, key, leaf_max);
             index = leaf.value_slot(key);
             split_insert(leaf, index, path, key, value, fast);
             // will unlock fp_meta_mutex when going out of scope
