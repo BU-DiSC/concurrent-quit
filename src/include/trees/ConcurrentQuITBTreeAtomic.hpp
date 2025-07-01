@@ -766,7 +766,7 @@ class BTree {
     }
 
     void insert(const key_type &key, const value_type &value) {
-        std::cout << "Inserting key: " << key << std::endl;
+        // std::cout << "Inserting key: " << key << std::endl;
         path_t path;
         uint16_t index;
         node_t leaf;
@@ -849,7 +849,7 @@ class BTree {
             bool reset = life.failure();
             if (!reset) {
                 // not resetting the fast-path so it's metadata can be unlocked
-                fp_lock.unlock();
+                // fp_lock.unlock();
             }
             // find the leaf node to insert into
             find_leaf_exclusive(leaf, key, leaf_max);
