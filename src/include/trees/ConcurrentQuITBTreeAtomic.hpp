@@ -845,6 +845,7 @@ class BTree {
             // std::cout << "non fast insert entered" << std::endl;
             // does not qualify for fast-path
             // std::unique_lock fp_meta_lock(fp_meta_mutex);
+            ++ctr_fast_fail;
             fast = false;
             bool reset = life.failure();
             if (!reset) {
