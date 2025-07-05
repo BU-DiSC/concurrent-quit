@@ -85,7 +85,8 @@
     },
     "[cpp]": {
         // "editor.defaultFormatter": "ms-vscode.cpptools"
-        "editor.defaultFormatter": "xaver.clang-format"
+        // "editor.defaultFormatter": "xaver.clang-format",
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
     },
     "clang-format.fallbackStyle": "Google",
     "C_Cpp.default.cppStandard": "c++20",
