@@ -3,7 +3,6 @@
 #include <chrono>
 #include <cmath>
 #include <cstring>
-#include <functional>
 #include <iostream>
 #include <mutex>
 #include <optional>
