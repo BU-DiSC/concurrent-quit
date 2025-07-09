@@ -7,3 +7,5 @@ scripts/workloads/
 *.ipynb_checkpoints
 *_db
 scripts/concurrent-workloads/
+scripts/medium-concurrent-workloads/
+scripts/large-concurrent-workloads/

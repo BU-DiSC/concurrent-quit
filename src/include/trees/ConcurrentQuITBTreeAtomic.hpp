@@ -1,5 +1,6 @@
 #pragma once
 
+#include <atomic>
 #include <chrono>
 #include <cmath>
 #include <cstring>
@@ -17,7 +18,7 @@
 #include "ikr.h"
 #include "sort.hpp"
 
-namespace ConcurrentQuITBTree {
+namespace ConcurrentQuITBTreeAtomic {
 struct reset_stats {
     uint8_t fails;
     uint8_t threshold;
@@ -104,20 +105,31 @@ class BTree {
     node_id_t head_id;
     node_id_t tail_id;
 
-    mutable std::shared_mutex fp_mutex;
-    // Captures below metadata
-    node_id_t fp_id;
-    key_type fp_min;
-    key_type fp_max;
-    uint16_t fp_size;
-    // end of capture for fp_mutex
+    struct fast_path_metadata {
+        node_id_t fp_id;
+        key_type fp_min;
+        key_type fp_max;
+        uint16_t fp_size;
+    };
 
-    mutable std::shared_mutex fp_meta_mutex;
-    // Captures below metadata
-    node_id_t fp_prev_id;
-    key_type fp_prev_min;
-    uint16_t fp_prev_size;
-    // end of capture for fp_meta_mutex
+    struct fast_path_helper_metadata {
+        node_id_t fp_prev_id;
+        key_type fp_prev_min;
+        uint16_t fp_prev_size;
+
+        bool operator==(const fast_path_helper_metadata &other) {
+            return fp_prev_id == other.fp_prev_id &&
+                   fp_prev_min == other.fp_prev_min &&
+                   fp_prev_size == other.fp_prev_size;
+        }
+    };
+
+    mutable std::shared_mutex fp_mutex;
+    fast_path_metadata fp_metadata;
+
+    // mutable std::shared_mutex fp_meta_mutex;
+    // fast_path_helper_metadata fp_prev_metadata;
+    std::atomic<fast_path_helper_metadata> fp_prev_metadata;
 
     uint8_t height;
 
@@ -150,7 +162,7 @@ class BTree {
         node_t root(manager.open_block(root_id));
         node_t left_node(manager.open_block(left_node_id));
         ++internal;
-        std::memcpy(left_node.info, root.info, 4096);
+        std::memcpy(left_node.info, root.info, node_t::block_size);
         left_node.info->id = left_node_id;
         manager.mark_dirty(left_node_id);
 
@@ -330,8 +342,40 @@ class BTree {
         mutexes[root_id].unlock();
     }
 
-    bool leaf_insert(node_t &leaf, uint16_t index, const key_type &key,
-                     const value_type &value, bool fast) {
+    /*
+        Function to update fast-path metadata upon leaf insert
+        Requires:
+            (1) leaf to be locked
+            (2) fp_mutex to be locked
+            (3) fp_meta_mutex to be locked
+    */
+    void update_fp_metadata_with_leaf_insert(node_t &leaf) {
+        if (leaf.info->next_id == fp_metadata.fp_id) {
+            // if inserting to fast_prev
+            // fp_prev_metadata.fp_prev_id = leaf.info->id;
+            // fp_prev_metadata.fp_prev_min = leaf.keys[0];
+            // fp_prev_metadata.fp_prev_size = leaf.info->size;
+
+            // update fp_prev_metadata
+            fast_path_helper_metadata new_metadata = {
+                leaf.info->id, leaf.keys[0], leaf.info->size};
+            fast_path_helper_metadata expected_metadata =
+                fp_prev_metadata.load();
+            // atomically exchange metadata
+            // do {
+            //     // Attempt to update the metadata
+            // } while (!fp_prev_metadata.compare_exchange_strong(
+            //     expected_metadata, new_metadata));
+            while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
+                                                             new_metadata)) {
+            }
+        }
+    }
+
+    bool leaf_insert(
+        node_t &leaf, uint16_t index, const key_type &key,
+        const value_type &value, bool fast,
+        std::function<void(node_t &l)> update_associated_metadata = nullptr) {
         if (index < leaf.info->size && leaf.keys[index] == key) {
             manager.mark_dirty(leaf.info->id);
             leaf.values[index] = value;
@@ -372,17 +416,33 @@ class BTree {
         ++leaf.info->size;
 
         if (fast) {
-            if (leaf.info->id == fp_id) {
-                ++fp_size;
-            } else if (leaf.info->next_id == fp_id) {
-                // This block is executed when the current leaf's next_id
-                // matches fp_id. It updates fp_prev_id, fp_prev_min, and
-                // fp_prev_size to track the previous leaf's state.
-                fp_prev_id = leaf.info->id;
-                fp_prev_min = leaf.keys[0];
-                fp_prev_size = leaf.info->size;
+            if (leaf.info->next_id == fp_metadata.fp_id) {
+                // WARN: Check if this block is ever accessed
+                // fp_prev_metadata.fp_prev_id = leaf.info->id;
+                // fp_prev_metadata.fp_prev_min = leaf.keys[0];
+                // fp_prev_metadata.fp_prev_size = leaf.info->size;
+
+                // update fp_prev_metadata
+                fast_path_helper_metadata new_metadata = {
+                    leaf.info->id, leaf.keys[0], leaf.info->size};
+                fast_path_helper_metadata expected_metadata =
+                    fp_prev_metadata.load();
+                // atomically exchange metadata
+                // do {
+                //     // Attempt to update the metadata
+                // } while (!fp_prev_metadata.compare_exchange_strong(
+                //     expected_metadata, new_metadata));
+                while (!fp_prev_metadata.compare_exchange_strong(
+                    expected_metadata, new_metadata)) {
+                }
             }
         }
+
+        // if (update_associated_metadata) {
+        //     // requires fp_mutex and fp_meta_mutex to be locked
+        //     // and unlocked by caller
+        //     update_associated_metadata(leaf);
+        // }
 
         mutexes[leaf.info->id].unlock();
         return true;
@@ -416,34 +476,6 @@ class BTree {
     }
 
     /*
-        Function to split the leaf node and insert the new key-value pair
-        Requires:
-            (1) leaf to be locked
-            (2) fp_mutex to be locked
-            (3) fp_meta_mutex to be locked
-    */
-    void update_fp_metadata_split(node_t &leaf, node_t &new_leaf,
-                                  bool fp_move) {
-        if (leaf.info->id == fp_id) {
-            if (fp_move) {
-                fp_prev_min = fp_min;
-                fp_prev_size = leaf.info->size;
-                fp_prev_id = fp_id;
-                fp_id = new_leaf.info->id;
-                fp_min = new_leaf.keys[0];
-                fp_size = new_leaf.info->size;
-            } else {
-                fp_max = new_leaf.keys[0];
-                fp_size = leaf.info->size;
-            }
-        } else if (new_leaf.info->next_id == fp_id) {
-            fp_prev_id = new_leaf.info->id;
-            fp_prev_min = new_leaf.keys[0];
-            fp_prev_size = new_leaf.info->size;
-        }
-    }
-
-    /*
         Function to determine the split position of the leaf node
         Requires (from caller):
             (1) leaf to be locked
@@ -453,16 +485,25 @@ class BTree {
     uint16_t determine_split_pos(node_t &leaf, uint16_t index, bool &fp_move) {
         uint16_t split_leaf_pos = SPLIT_LEAF_POS;
         // requires leaf, fp_mutex and fp_meta_mutex to be locked by caller
-        if (leaf.info->id == fp_id) {
+        auto expected_prev_metadata = fp_prev_metadata.load();
+        if (leaf.info->id == fp_metadata.fp_id) {
             // determine split position based on fast path metadata
-            if (fp_prev_id == INVALID_NODE_ID ||
-                fp_prev_size < IQR_SIZE_THRESH) {
+            // if (fp_prev_metadata.fp_prev_id == INVALID_NODE_ID ||
+            //     fp_prev_metadata.fp_prev_size < IQR_SIZE_THRESH) {
+            if (expected_prev_metadata.fp_prev_id == INVALID_NODE_ID ||
+                expected_prev_metadata.fp_prev_size < IQR_SIZE_THRESH) {
                 // move the fast-path to new leaf
                 fp_move = true;
             } else {
+                // size_t max_distance = IKR::upper_bound(
+                //     dist(fp_metadata.fp_min, fp_prev_metadata.fp_prev_min),
+                //     fp_prev_metadata.fp_prev_size, fp_metadata.fp_size);
                 size_t max_distance = IKR::upper_bound(
-                    dist(fp_min, fp_prev_min), fp_prev_size, fp_size);
-                uint16_t outlier_pos = leaf.value_slot2(fp_min + max_distance);
+                    dist(fp_metadata.fp_min,
+                         expected_prev_metadata.fp_prev_min),
+                    expected_prev_metadata.fp_prev_size, fp_metadata.fp_size);
+                uint16_t outlier_pos =
+                    leaf.value_slot2(fp_metadata.fp_min + max_distance);
                 if (outlier_pos <= SPLIT_LEAF_POS) {
                     // retain fast-path as is
                     split_leaf_pos = outlier_pos;
@@ -485,19 +526,28 @@ class BTree {
                       const key_type &key, const value_type &value, bool fast) {
         ++size;
         uint16_t split_leaf_pos = SPLIT_LEAF_POS;
-
+        auto expected_prev_metadata = fp_prev_metadata.load();
         bool fp_move = false;
         if (fast) {
             // requires fp_mutex and fp_meta_mutex to be locked by caller
-            if (leaf.info->id == fp_id) {
-                if (fp_prev_id == INVALID_NODE_ID ||
-                    fp_prev_size < IQR_SIZE_THRESH) {
+            if (leaf.info->id == fp_metadata.fp_id) {
+                // if (fp_prev_metadata.fp_prev_id == INVALID_NODE_ID ||
+                //     fp_prev_metadata.fp_prev_size < IQR_SIZE_THRESH) {
+                if (expected_prev_metadata.fp_prev_id == INVALID_NODE_ID ||
+                    expected_prev_metadata.fp_prev_size < IQR_SIZE_THRESH) {
                     fp_move = true;
                 } else {
+                    // size_t max_distance = IKR::upper_bound(
+                    //     dist(fp_metadata.fp_min,
+                    //     fp_prev_metadata.fp_prev_min),
+                    //     fp_prev_metadata.fp_prev_size, fp_metadata.fp_size);
                     size_t max_distance = IKR::upper_bound(
-                        dist(fp_min, fp_prev_min), fp_prev_size, fp_size);
+                        dist(fp_metadata.fp_min,
+                             expected_prev_metadata.fp_prev_min),
+                        expected_prev_metadata.fp_prev_size,
+                        fp_metadata.fp_size);
                     uint16_t outlier_pos =
-                        leaf.value_slot2(fp_min + max_distance);
+                        leaf.value_slot2(fp_metadata.fp_min + max_distance);
                     if (outlier_pos <= SPLIT_LEAF_POS) {
                         split_leaf_pos = outlier_pos;
                     } else {
@@ -554,22 +604,43 @@ class BTree {
 
         if (fast) {
             // requires fp_mutex and fp_meta_mutex to be locked by caller
-            if (leaf.info->id == fp_id) {
+            if (leaf.info->id == fp_metadata.fp_id) {
                 if (fp_move) {
-                    fp_prev_min = fp_min;
-                    fp_prev_size = leaf.info->size;
-                    fp_prev_id = fp_id;
-                    fp_id = new_leaf_id;
-                    fp_min = new_leaf.keys[0];
-                    fp_size = new_leaf.info->size;
+                    // fp_prev_metadata.fp_prev_min = fp_metadata.fp_min;
+                    // fp_prev_metadata.fp_prev_size = leaf.info->size;
+                    // fp_prev_metadata.fp_prev_id = fp_metadata.fp_id;
+                    fast_path_helper_metadata new_metadata = {
+                        fp_metadata.fp_id, fp_metadata.fp_min, leaf.info->size};
+                    fast_path_helper_metadata expected_metadata =
+                        fp_prev_metadata.load();
+                    // do {
+                    // } while (!fp_prev_metadata.compare_exchange_strong(
+                    //     expected_metadata, new_metadata));
+                    while (!fp_prev_metadata.compare_exchange_strong(
+                        expected_metadata, new_metadata)) {
+                    }
+                    fp_metadata.fp_id = new_leaf_id;
+                    fp_metadata.fp_min = new_leaf.keys[0];
+                    fp_metadata.fp_size = new_leaf.info->size;
                 } else {
-                    fp_max = new_leaf.keys[0];
-                    fp_size = leaf.info->size;
+                    fp_metadata.fp_max = new_leaf.keys[0];
+                    fp_metadata.fp_size = leaf.info->size;
                 }
-            } else if (new_leaf.info->next_id == fp_id) {
-                fp_prev_id = new_leaf_id;
-                fp_prev_min = new_leaf.keys[0];
-                fp_prev_size = new_leaf.info->size;
+            } else if (new_leaf.info->next_id == fp_metadata.fp_id) {
+                // fp_prev_metadata.fp_prev_id = new_leaf_id;
+                // fp_prev_metadata.fp_prev_min = new_leaf.keys[0];
+                // fp_prev_metadata.fp_prev_size = new_leaf.info->size;
+
+                fast_path_helper_metadata new_metadata = {
+                    new_leaf_id, new_leaf.keys[0], new_leaf.info->size};
+                fast_path_helper_metadata expected_metadata =
+                    fp_prev_metadata.load();
+                // do {
+                // } while (!fp_prev_metadata.compare_exchange_strong(
+                //     expected_metadata, new_metadata));
+                while (!fp_prev_metadata.compare_exchange_strong(
+                    expected_metadata, new_metadata)) {
+                }
             }
         }
 
@@ -590,15 +661,18 @@ class BTree {
           life(sqrt(node_t::leaf_capacity)) {
         head_id = tail_id = m.allocate();
 
-        fp_min = {};
+        fp_metadata.fp_min = {};
 
-        fp_id = tail_id;
-        fp_max = {};
+        fp_metadata.fp_id = tail_id;
+        fp_metadata.fp_max = {};
         dist = cmp;
-        fp_prev_id = INVALID_NODE_ID;
-        fp_prev_min = {};
-        fp_prev_size = 0;
-        fp_size = 0;
+        // fp_prev_metadata.fp_prev_id = INVALID_NODE_ID;
+        // fp_prev_metadata.fp_prev_min = {};
+        // fp_prev_metadata.fp_prev_size = 0;
+        fast_path_helper_metadata new_metadata = {INVALID_NODE_ID, {}, 0};
+        fp_prev_metadata.store(new_metadata);
+
+        fp_metadata.fp_size = 0;
 
         node_t leaf(manager.open_block(head_id), LEAF);
         manager.mark_dirty(head_id);
@@ -638,77 +712,104 @@ class BTree {
         // if leaf appends are enabled, we need to sort the fast-path
         if constexpr (LEAF_APPENDS_ENABLED) {
             if (!fp_sorted) {
-                mutexes[fp_id].lock();
-                node_t fp_leaf(manager.open_block(fp_id), LEAF);
+                mutexes[fp_metadata.fp_id].lock();
+                node_t fp_leaf(manager.open_block(fp_metadata.fp_id), LEAF);
                 sort_leaf(fp_leaf);
                 fp_sorted = true;
                 ++ctr_sort;
-                manager.mark_dirty(fp_id);
-                mutexes[fp_id].unlock();
+                manager.mark_dirty(fp_metadata.fp_id);
+                mutexes[fp_metadata.fp_id].unlock();
             }
         }
 
         // update associated metadata
-        if (fp_id != tail_id && leaf.keys[0] == fp_max) {
+        if (fp_metadata.fp_id != tail_id &&
+            leaf.keys[0] == fp_metadata.fp_max) {
             // in this case, we end up inserting to fp-next
-            fp_prev_id = fp_id;
-            fp_prev_size = fp_size;
-            fp_prev_min = fp_min;
+            // fp_prev_metadata.fp_prev_id = fp_metadata.fp_id;
+            // fp_prev_metadata.fp_prev_size = fp_metadata.fp_size;
+            // fp_prev_metadata.fp_prev_min = fp_metadata.fp_min;
+            fast_path_helper_metadata new_metadata = {
+                fp_metadata.fp_id, fp_metadata.fp_min, fp_metadata.fp_size};
+            fast_path_helper_metadata expected_metadata =
+                fp_prev_metadata.load();
+            // do {
+            // } while (!fp_prev_metadata.compare_exchange_strong(
+            //     expected_metadata, new_metadata));
+            while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
+                                                             new_metadata)) {
+            }
         } else {
-            fp_prev_id = INVALID_NODE_ID;
+            // fp_prev_metadata.fp_prev_id = INVALID_NODE_ID;
+            fast_path_helper_metadata new_metadata = {INVALID_NODE_ID, {}, 0};
+            fast_path_helper_metadata expected_metadata =
+                fp_prev_metadata.load();
+            // do {
+            // } while (!fp_prev_metadata.compare_exchange_strong(
+            //     expected_metadata, new_metadata));
+            while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
+                                                             new_metadata)) {
+            }
         }
-        fp_id = leaf.info->id;
-        fp_min = leaf.keys[0];
-        fp_max = leaf_max;
-        fp_size = leaf.info->size;
+        fp_metadata.fp_id = leaf.info->id;
+        fp_metadata.fp_min = leaf.keys[0];
+        fp_metadata.fp_max = leaf_max;
+        fp_metadata.fp_size = leaf.info->size;
         life.reset();
         return true;
     }
 
     void insert(const key_type &key, const value_type &value) {
+        // std::cout << "Inserting key: " << key << std::endl;
         path_t path;
         uint16_t index;
         node_t leaf;
-
         bool fast;
         key_type leaf_max{};
 
-        std::unique_lock fp_lock(fp_mutex);
+        // lock the fast-path to check if we can use it
+        std::unique_lock fp_lock(fp_mutex);  // scoped lock
+        // std::unique_lock fp_meta_lock(fp_meta_mutex);
+        if ((fp_metadata.fp_id == head_id || fp_metadata.fp_min <= key)
 
-        if ((fp_id == head_id || fp_min <= key)
-
-            && (fp_id == tail_id || key < fp_max)
-
-        ) {
+            && (fp_metadata.fp_id == tail_id || key < fp_metadata.fp_max)) {
             fast = true;
 
-            mutexes[fp_id].lock();
-            leaf.load(manager.open_block(fp_id));
-
             life.success();
+            mutexes[fp_metadata.fp_id]
+                .lock();  // will be unlocked in leaf_insert()
+            leaf.load(manager.open_block(fp_metadata.fp_id));
 
-            if constexpr (LEAF_APPENDS_ENABLED) {
-                if (leaf_insert(leaf, leaf.info->size, key, value, true)) {
-                    ++ctr_fast;
-                    return;
-                }
-            } else {
-                std::chrono::high_resolution_clock::time_point start =
-                    std::chrono::high_resolution_clock::now();
-                index = leaf.value_slot(key);
+            if (fp_metadata.fp_size < node_t::leaf_capacity) {
+                // we can directly insert to the fast-path
+                if constexpr (LEAF_APPENDS_ENABLED) {
+                    index = fp_metadata.fp_size;
+                } else {
+                    std::chrono::high_resolution_clock::time_point start =
+                        std::chrono::high_resolution_clock::now();
+                    index = leaf.value_slot(key);
 
-                std::chrono::high_resolution_clock::time_point end =
-                    std::chrono::high_resolution_clock::now();
-                find_leaf_slot_time +=
-                    std::chrono::duration_cast<std::chrono::nanoseconds>(end -
-                                                                         start)
-                        .count();
-                if (leaf_insert(leaf, index, key, value, true)) {
-                    ++ctr_fast;
-                    return;
+                    std::chrono::high_resolution_clock::time_point end =
+                        std::chrono::high_resolution_clock::now();
+                    find_leaf_slot_time +=
+                        std::chrono::duration_cast<std::chrono::nanoseconds>(
+                            end - start)
+                            .count();
                 }
+                fp_metadata.fp_size++;
+                // TODO: unlock fp_lock here - however, should check for
+                // in-order insert here
+                leaf_insert(leaf, index, key, value, true);
+                ++ctr_fast;
+                return;  // also unlocks fp_mutex
             }
+            // std::cout << "in else block of fp" << std::endl;
+            // else block -> fast-path is will be at capacity needs to split
 
+            // // lock fast-path meta-mutex as it will be updated upon split
+            // std::unique_lock fp_meta_lock(fp_meta_mutex);
+
+            // check if we need to sort the fast-path
             if constexpr (LEAF_APPENDS_ENABLED) {
                 if (!fp_sorted) {
                     sort_leaf(leaf);
@@ -716,64 +817,69 @@ class BTree {
                     ++ctr_sort;
                 }
             }
-
             ++ctr_fast_fail;
-            mutexes[fp_id].unlock();
+            mutexes[fp_metadata.fp_id]
+                .unlock();  // unlock fast-path as it will be locked
+                            // by find_leaf_exclusive
+            // split case handled as a top-insert as both perform similar effort
             find_leaf_exclusive(leaf, path, key, leaf_max);
+            index = leaf.value_slot(
+                key);  // we have to do this as leaf has been sorted
+            if (leaf_insert(leaf, index, key, value, fast)) {
+                for (const auto &parent_id : path) {
+                    mutexes[parent_id].unlock();
+                }
+                return;
+            }
+            // TODO: pre-determine split position based on IKR here
+            split_insert(leaf, index, path, key, value, fast);
+            // fp_lock and fp_meta_lock will be unlocked when going out of scope
+            return;
         } else {
+            // std::cout << "non fast insert entered" << std::endl;
+            // does not qualify for fast-path
+            // std::unique_lock fp_meta_lock(fp_meta_mutex);
+            ++ctr_fast_fail;
             fast = false;
             bool reset = life.failure();
             if (!reset) {
-                fp_lock.unlock();
+                // not resetting the fast-path so it's metadata can be unlocked
+                // fp_lock.unlock();
             }
-
+            // find the leaf node to insert into
             find_leaf_exclusive(leaf, key, leaf_max);
-
             if (reset) {
                 ++ctr_hard;
-                if constexpr (LEAF_APPENDS_ENABLED) {
-                    if (!fp_sorted) {
-                        mutexes[fp_id].lock();
-                        node_t fp_leaf(manager.open_block(fp_id), LEAF);
-                        sort_leaf(fp_leaf);
-                        fp_sorted = true;
-                        ++ctr_sort;
-                        manager.mark_dirty(fp_id);
-                        mutexes[fp_id].unlock();
-                    }
-                }
-                // now update associated metadata
-                if (fp_id != tail_id && leaf.keys[0] == fp_max) {
-                    fp_prev_id = fp_id;
-                    fp_prev_size = fp_size;
-                    fp_prev_min = fp_min;
-                } else {
-                    fp_prev_id = INVALID_NODE_ID;
-                }
-                fp_id = leaf.info->id;
-                fp_min = leaf.keys[0];
-                fp_max = leaf_max;
-                fp_size = leaf.info->size;
-                life.reset();
-                fast = true;
+                // sets fast to true as we reset the fast-path
+                fast = reset_fast_path(
+                    leaf,
+                    leaf_max);  // reset_fast_path() sorts the
+                                // fast-path, and updates fast-path to leaf
             }
-
             index = leaf.value_slot(key);
+            // attempt to insert into the leaf node
             if (leaf_insert(leaf, index, key, value, fast)) {
-                return;
+                // if we inserted into the fast-path, update its size
+                if (leaf.info->id == fp_metadata.fp_id) {
+                    ++fp_metadata.fp_size;
+                }
+                // insert was successful so we can complete the operation
+                // leaf_insert() will unlock the leaf node, unlock any parents
+                for (const auto &parent_id : path) {
+                    mutexes[parent_id].unlock();
+                }
+                return;  // also unlocks fp_meta_mutex + fp_mutex
             }
-
             mutexes[leaf.info->id].unlock();
             find_leaf_exclusive(leaf, path, key, leaf_max);
+            // if (leaf.info->id != fp_prev_metadata.fp_prev_id) {
+            //     // can unlock fp_meta_mutex here as we are not updating
+            // }
+            index = leaf.value_slot(key);
+            split_insert(leaf, index, path, key, value, fast);
+            // will unlock fp_meta_mutex when going out of scope
         }
-        index = leaf.value_slot(key);
-        if (leaf_insert(leaf, index, key, value, fast)) {
-            for (const auto &parent_id : path) {
-                mutexes[parent_id].unlock();
-            }
-            return;
-        }
-        split_insert(leaf, index, path, key, value, fast);
+        // will unlock fp_mutex when going out of scope
     }
 
     uint32_t select_k(size_t count, const key_type &min_key) const {
@@ -832,7 +938,7 @@ class BTree {
         node_t leaf;
         find_leaf_shared(leaf, key);
         std::shared_lock lock(mutexes[leaf.info->id], std::adopt_lock);
-        if (leaf.info->id != fp_id) {
+        if (leaf.info->id != fp_metadata.fp_id) {
             uint16_t index = leaf.value_slot(key);
             return index < leaf.info->size && (leaf.keys[index] == key);
         } else {
@@ -846,4 +952,4 @@ class BTree {
         }
     }
 };
-}  // namespace ConcurrentQuITBTree
+}  // namespace ConcurrentQuITBTreeAtomic

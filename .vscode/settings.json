@@ -85,7 +85,8 @@
     },
     "[cpp]": {
         // "editor.defaultFormatter": "ms-vscode.cpptools"
-        "editor.defaultFormatter": "xaver.clang-format"
+        // "editor.defaultFormatter": "xaver.clang-format",
+        "editor.defaultFormatter": "llvm-vs-code-extensions.vscode-clangd",
     },
     "clang-format.fallbackStyle": "Google",
     "C_Cpp.default.cppStandard": "c++20",
@@ -94,6 +95,10 @@
     "C_Cpp.inlayHints.referenceOperator.enabled": true,
     "C_Cpp.codeAnalysis.clangTidy.enabled": true,
     "C_Cpp.default.compileCommands": "${workspaceFolder}/build/compile_commands.json",
-    "C_Cpp.intelliSenseEngine": "Tag Parser",
-    "C_Cpp.workspaceParsingPriority": "low"
+    "C_Cpp.intelliSenseEngine": "disabled",
+    "C_Cpp.workspaceParsingPriority": "low",
+    "clangd.enableCodeCompletion": true,
+    "clangd.detectExtensionConflicts": true,
+    "clangd.enable": true,
+    "clangd.onConfigChanged": "prompt"
 }

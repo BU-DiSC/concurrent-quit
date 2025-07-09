@@ -138,14 +138,14 @@ class Workload {
                      size_t num_updates) {
         if (num_updates > 0) {
             log.trace("Updates ({})", num_updates);
-            std::vector<key_type> queries;
+            std::vector<key_type> updates;
             std::uniform_int_distribution<size_t> index(0, num_inserts - 1);
             for (size_t i = 0; i < num_updates; i++) {
-                queries.emplace_back(data[index(generator)] + offset);
+                updates.emplace_back(data[index(generator)] + offset);
             }
             auto duration = utils::worker::work(
-                utils::worker::update_worker<tree_t, key_type>, tree, data, 0,
-                num_updates, conf.num_threads, offset);
+                utils::worker::update_worker<tree_t, key_type>, tree, updates,
+                0, num_updates, conf.num_threads, offset);
             results << ", " << duration.count();
             timer.updates = duration.count();
         }
