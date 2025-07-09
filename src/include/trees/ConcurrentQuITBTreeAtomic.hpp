@@ -368,7 +368,6 @@ class BTree {
             //     expected_metadata, new_metadata));
             while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
                                                              new_metadata)) {
-                std::cout << "compare exchange failed 6" << std::endl;
             }
         }
     }
@@ -435,7 +434,6 @@ class BTree {
                 //     expected_metadata, new_metadata));
                 while (!fp_prev_metadata.compare_exchange_strong(
                     expected_metadata, new_metadata)) {
-                    std::cout << "compare exchange failed" << std::endl;
                 }
             }
         }
@@ -620,7 +618,6 @@ class BTree {
                     //     expected_metadata, new_metadata));
                     while (!fp_prev_metadata.compare_exchange_strong(
                         expected_metadata, new_metadata)) {
-                        std::cout << "compare exchange failed 2" << std::endl;
                     }
                     fp_metadata.fp_id = new_leaf_id;
                     fp_metadata.fp_min = new_leaf.keys[0];
@@ -643,7 +640,6 @@ class BTree {
                 //     expected_metadata, new_metadata));
                 while (!fp_prev_metadata.compare_exchange_strong(
                     expected_metadata, new_metadata)) {
-                    std::cout << "compare exchange failed 3" << std::endl;
                 }
             }
         }
@@ -742,7 +738,6 @@ class BTree {
             //     expected_metadata, new_metadata));
             while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
                                                              new_metadata)) {
-                std::cout << "compare exchange failed 4" << std::endl;
             }
         } else {
             // fp_prev_metadata.fp_prev_id = INVALID_NODE_ID;
@@ -754,7 +749,6 @@ class BTree {
             //     expected_metadata, new_metadata));
             while (!fp_prev_metadata.compare_exchange_strong(expected_metadata,
                                                              new_metadata)) {
-                std::cout << "compare exchange failed 5" << std::endl;
             }
         }
         fp_metadata.fp_id = leaf.info->id;
