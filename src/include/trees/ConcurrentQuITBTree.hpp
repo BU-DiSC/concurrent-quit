@@ -375,7 +375,8 @@ class BTree {
             if (leaf.info->id == fp_id) {
                 ++fp_size;
             } else if (leaf.info->next_id == fp_id) {
-                // WARN: Check if this block is ever accessed
+                // This block is executed when the current leaf's next_id matches fp_id.
+                // It updates fp_prev_id, fp_prev_min, and fp_prev_size to track the previous leaf's state.
                 fp_prev_id = leaf.info->id;
                 fp_prev_min = leaf.keys[0];
                 fp_prev_size = leaf.info->size;
