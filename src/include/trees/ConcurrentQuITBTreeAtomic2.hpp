@@ -675,7 +675,7 @@ class BTree {
         key_type leaf_max{};
 
         // lock the fast-path to check if we can use it
-        // std::unique_lock fp_meta_lock(fp_meta_mutex);
+        std::unique_lock fp_meta_lock(fp_meta_mutex);
         auto fp_meta = fp_metadata.load();
         if ((fp_meta.fp_id == head_id || fp_meta.fp_min <= key)
 
