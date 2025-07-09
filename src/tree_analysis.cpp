@@ -31,7 +31,8 @@ using namespace ConcurrentQuITBTreeAtomic;
 #elif defined(FOR_CONCURRENT_QUIT_ATOMIC2)
 using namespace ConcurrentQuITBTreeAtomic2;
 #else
-using namespace SimpleBTree;  // FOR_SIMPLEBTREE or fallback
+// using namespace SimpleBTree;  // FOR_SIMPLEBTREE or fallback
+using namespace ConcurrentQuITBTreeAtomic2;
 #endif
 
 #if defined(FOR_CONCURRENT_QUIT_APPENDS) || \
