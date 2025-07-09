@@ -162,7 +162,7 @@ class BTree {
         node_t root(manager.open_block(root_id));
         node_t left_node(manager.open_block(left_node_id));
         ++internal;
-        std::memcpy(left_node.info, root.info, 4096);
+        std::memcpy(left_node.info, root.info, node_t::block_size);
         left_node.info->id = left_node_id;
         manager.mark_dirty(left_node_id);
 
