@@ -694,8 +694,6 @@ class BTree {
             leaf.load(manager.open_block(fp_meta.fp_id));
 
             if (leaf.info->size < node_t::leaf_capacity) {
-                // std::cout << "fast insert entered with key: " << key
-                //           << std::endl;
                 fp_meta_lock.unlock();  // unlock fp_prev_meta_mutex
                 // we can directly insert to the fast-path
                 if constexpr (LEAF_APPENDS_ENABLED) {
@@ -719,9 +717,7 @@ class BTree {
                 return;  // also unlocks fp_mutex
             }
 
-            // std::cout << "in else block of fp with key: " << key <<
-            // std::endl; else block -> fast-path is will be at capacity needs
-            // to split
+            // else block -> fast-path is will be at capacity needsto split
 
             // reload fp metadata
             fp_meta = fp_metadata.load();
@@ -760,9 +756,6 @@ class BTree {
             // fp_meta_lock will be unlocked when going out of scope
             return;
         } else {
-            // std::cout << "non fast insert entered with key: " << key
-            //           << std::endl;
-
             // does not qualify for fast-path
             ++ctr_fast_fail;
             fast = false;
@@ -772,8 +765,6 @@ class BTree {
             find_leaf_exclusive(leaf, key, leaf_max);
 
             if (reset) {
-                // std::cout << "Resetting fast-path for key: " << key
-                //           << std::endl;
                 ++ctr_hard;
                 // sets fast to true as we reset the fast-path
                 fast = reset_fast_path(
