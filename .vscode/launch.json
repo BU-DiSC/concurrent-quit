@@ -11,6 +11,16 @@
             "program": "${workspaceFolder}/scripts/index_bench.py",
             "console": "integratedTerminal",
             "args": "--input_dir ${workspaceFolder}/scripts/workloads --db_path debug_db --executable ${workspaceFolder}/build/simple"
+        },
+        {
+            "name": "Launch ConcurrentQuITBTreeAtomic2",
+            "type": "cppdbg",
+            "request": "launch",
+            "program": "${workspaceFolder}/build/concurrent_quit_atomic2",
+            "args": [
+                "${workspaceFolder}/scripts/concurrent-workloads/5_50_100"
+            ],
+            "cwd": "${workspaceFolder}"
         }
     ]
 }

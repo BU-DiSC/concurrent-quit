@@ -107,7 +107,7 @@ class BTree {
         node_id_t fp_id;
         key_type fp_min;
         key_type fp_max;
-        bool fp_sorted;
+        bool fp_sorted = true;
         bool operator==(const fast_path_metadata &other) {
             return fp_id == other.fp_id && fp_min == other.fp_min &&
                    fp_max == other.fp_max && fp_sorted == other.fp_sorted;
@@ -357,14 +357,17 @@ class BTree {
         }
 
         auto fp_meta = fp_metadata.load();
-        if (fast && fp_meta.fp_sorted) {
-            if (leaf.keys[index - 1] > key) {
-                // update fp_sorted through a compare_exchange
-                fast_path_metadata new_fp_meta = fp_meta;
-                new_fp_meta.fp_sorted = false;
-                while (!fp_metadata.compare_exchange_strong(fp_meta,
-                                                            new_fp_meta)) {
-                    std::cerr << "Failed to update fp_sorted in leaf_insert\n";
+        if constexpr (LEAF_APPENDS_ENABLED) {
+            if (fast && leaf.info->id == fp_meta.fp_id && fp_meta.fp_sorted) {
+                if (leaf.keys[index - 1] > key) {
+                    // update fp_sorted through a compare_exchange
+                    fast_path_metadata new_fp_meta = fp_meta;
+                    new_fp_meta.fp_sorted = false;
+                    while (!fp_metadata.compare_exchange_strong(fp_meta,
+                                                                new_fp_meta)) {
+                        std::cerr
+                            << "Failed to update fp_sorted in leaf_insert\n";
+                    }
                 }
             }
         }
@@ -687,10 +690,10 @@ class BTree {
         if ((fp_meta.fp_id == head_id.load() || fp_meta.fp_min <= key)
 
             && (fp_meta.fp_id == tail_id.load() || key < fp_meta.fp_max)) {
-            fast = true;
-
-            life.success();
             mutexes[fp_meta.fp_id].lock();  // will be unlocked in leaf_insert()
+            fast = true;
+            life.success();
+
             leaf.load(manager.open_block(fp_meta.fp_id));
 
             if (leaf.info->size < node_t::leaf_capacity) {
@@ -715,14 +718,14 @@ class BTree {
                 return;  // also unlocks fp_mutex
             }
 
-            // else block -> fast-path is will be at capacity needsto split
+            // else block -> fast-path is will be at capacity needs to split
 
             // reload fp metadata
             fp_meta = fp_metadata.load();
 
             // check if we need to sort the fast-path
             if constexpr (LEAF_APPENDS_ENABLED) {
-                if (!fp_meta.fp_sorted) {
+                if (leaf.info->id == fp_meta.fp_id && !fp_meta.fp_sorted) {
                     sort_leaf(leaf);
                     auto new_fp_meta = fp_meta;
                     new_fp_meta.fp_sorted = true;

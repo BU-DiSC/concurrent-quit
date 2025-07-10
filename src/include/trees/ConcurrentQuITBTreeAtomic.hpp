@@ -110,6 +110,7 @@ class BTree {
         key_type fp_min;
         key_type fp_max;
         uint16_t fp_size;
+        bool fp_sorted;
     };
 
     struct fast_path_helper_metadata {
@@ -135,7 +136,7 @@ class BTree {
 
     reset_stats life;
 
-    std::atomic<bool> fp_sorted{};
+    // std::atomic<bool> fp_sorted{};
 
     std::atomic<uint32_t> ctr_fast{};
     std::atomic<uint32_t> ctr_fast_fail{};
@@ -388,9 +389,9 @@ class BTree {
             return false;
         }
 
-        if (fast && fp_sorted) {
+        if (fast && fp_metadata.fp_sorted) {
             if (leaf.keys[index - 1] > key) {
-                fp_sorted = false;
+                fp_metadata.fp_sorted = false;
             }
         }
 
@@ -689,7 +690,7 @@ class BTree {
         root.info->next_id = root_id;
         root.info->size = 0;
         root.children[0] = head_id;
-        fp_sorted = true;
+        fp_metadata.fp_sorted = true;
 
         if constexpr (LEAF_APPENDS_ENABLED) {
             std::cout << "leaf appends enabled" << std::endl;
@@ -714,11 +715,11 @@ class BTree {
     bool reset_fast_path(node_t &leaf, key_type &leaf_max) {
         // if leaf appends are enabled, we need to sort the fast-path
         if constexpr (LEAF_APPENDS_ENABLED) {
-            if (!fp_sorted) {
+            if (!fp_metadata.fp_sorted) {
                 mutexes[fp_metadata.fp_id].lock();
                 node_t fp_leaf(manager.open_block(fp_metadata.fp_id), LEAF);
                 sort_leaf(fp_leaf);
-                fp_sorted = true;
+                fp_metadata.fp_sorted = true;
                 ++ctr_sort;
                 manager.mark_dirty(fp_metadata.fp_id);
                 mutexes[fp_metadata.fp_id].unlock();
@@ -814,9 +815,9 @@ class BTree {
 
             // check if we need to sort the fast-path
             if constexpr (LEAF_APPENDS_ENABLED) {
-                if (!fp_sorted) {
+                if (!fp_metadata.fp_sorted) {
                     sort_leaf(leaf);
-                    fp_sorted = true;
+                    fp_metadata.fp_sorted = true;
                     ++ctr_sort;
                 }
             }
