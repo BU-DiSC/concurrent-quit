@@ -691,7 +691,7 @@ class BTree {
             leaf.load(manager.open_block(fp_meta.fp_id));
 
             if (leaf.info->size < node_t::leaf_capacity) {
-                // fp_meta_lock.unlock();  // unlock fp_prev_meta_mutex
+                fp_meta_lock.unlock();  // unlock fp_prev_meta_mutex
                 // we can directly insert to the fast-path
                 if constexpr (LEAF_APPENDS_ENABLED) {
                     index = leaf.info->size;
