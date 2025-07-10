@@ -710,8 +710,6 @@ class BTree {
                             end - start)
                             .count();
                 }
-                // TODO: unlock fp_lock here - however, should check for
-                // in-order insert here
                 leaf_insert(leaf, index, key, value, true);
                 ++ctr_fast;
                 return;  // also unlocks fp_mutex
