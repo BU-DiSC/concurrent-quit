@@ -162,7 +162,7 @@ class BTree {
         node_t root(manager.open_block(root_id));
         node_t left_node(manager.open_block(left_node_id));
         ++internal;
-        std::memcpy(left_node.info, root.info, node_t::block_size);
+        std::memcpy(left_node.info, root.info, BlockManager::block_size);
         left_node.info->id = left_node_id;
         manager.mark_dirty(left_node_id);
 
@@ -618,6 +618,9 @@ class BTree {
                     //     expected_metadata, new_metadata));
                     while (!fp_prev_metadata.compare_exchange_strong(
                         expected_metadata, new_metadata)) {
+                        std::cout << "Failed to update fp_prev_metadata in "
+                                     "fp_move at split_insert"
+                                  << std::endl;
                     }
                     fp_metadata.fp_id = new_leaf_id;
                     fp_metadata.fp_min = new_leaf.keys[0];
@@ -872,9 +875,6 @@ class BTree {
             }
             mutexes[leaf.info->id].unlock();
             find_leaf_exclusive(leaf, path, key, leaf_max);
-            // if (leaf.info->id != fp_prev_metadata.fp_prev_id) {
-            //     // can unlock fp_meta_mutex here as we are not updating
-            // }
             index = leaf.value_slot(key);
             split_insert(leaf, index, path, key, value, fast);
             // will unlock fp_meta_mutex when going out of scope

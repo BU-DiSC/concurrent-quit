@@ -100,8 +100,8 @@ class BTree {
     BlockManager &manager;
     mutable std::vector<std::shared_mutex> mutexes;
     const node_id_t root_id;
-    node_id_t head_id;
-    node_id_t tail_id;
+    std::atomic<node_id_t> head_id;
+    std::atomic<node_id_t> tail_id;
 
     struct fast_path_metadata {
         node_id_t fp_id;
@@ -540,8 +540,8 @@ class BTree {
             std::memcpy(new_leaf.values + new_index + 1, leaf.values + index,
                         (node_t::leaf_capacity - index) * sizeof(value_type));
         }
-        if (leaf.info->id == tail_id) {
-            tail_id = new_leaf_id;
+        if (leaf.info->id == tail_id.load()) {
+            tail_id.store(new_leaf_id);
         }
 
         if (fast) {
@@ -593,18 +593,20 @@ class BTree {
           root_id(m.allocate()),
           height(1),
           life(sqrt(node_t::leaf_capacity)) {
-        head_id = tail_id = m.allocate();
+        auto init_id = m.allocate();
+        head_id.store(init_id);
+        tail_id.store(init_id);
 
-        fp_metadata.store({tail_id, {}, {}, true});
+        fp_metadata.store({tail_id.load(), {}, {}, true});
         dist = cmp;
         fp_prev_metadata.fp_prev_id = INVALID_NODE_ID;
         fp_prev_metadata.fp_prev_min = {};
         fp_prev_metadata.fp_prev_size = 0;
 
-        node_t leaf(manager.open_block(head_id), LEAF);
-        manager.mark_dirty(head_id);
-        leaf.info->id = head_id;
-        leaf.info->next_id = head_id;
+        node_t leaf(manager.open_block(head_id.load()), LEAF);
+        manager.mark_dirty(head_id.load());
+        leaf.info->id = head_id.load();
+        leaf.info->next_id = head_id.load();
         leaf.info->size = 0;
 
         node_t root(manager.open_block(root_id), INTERNAL);
@@ -612,7 +614,7 @@ class BTree {
         root.info->id = root_id;
         root.info->next_id = root_id;
         root.info->size = 0;
-        root.children[0] = head_id;
+        root.children[0] = head_id.load();
 
         if constexpr (LEAF_APPENDS_ENABLED) {
             std::cout << "leaf appends enabled" << std::endl;
@@ -637,19 +639,20 @@ class BTree {
     bool reset_fast_path(node_t &leaf, key_type &leaf_max) {
         // load fp_metadata
         auto fp_meta = fp_metadata.load();
-        mutexes[fp_meta.fp_id].lock();
         // if leaf appends are enabled, we need to sort the fast-path
         if constexpr (LEAF_APPENDS_ENABLED) {
             if (!fp_meta.fp_sorted) {
+                mutexes[fp_meta.fp_id].lock();
                 node_t fp_leaf(manager.open_block(fp_meta.fp_id), LEAF);
                 sort_leaf(fp_leaf);
                 ++ctr_sort;
                 manager.mark_dirty(fp_meta.fp_id);
+                mutexes[fp_meta.fp_id].unlock();
             }
         }
 
         // update associated metadata
-        if (fp_meta.fp_id != tail_id && leaf.keys[0] == fp_meta.fp_max) {
+        if (fp_meta.fp_id != tail_id.load() && leaf.keys[0] == fp_meta.fp_max) {
             // in this case, we end up inserting to fp-next
             fp_prev_metadata.fp_prev_id = fp_meta.fp_id;
             fp_prev_metadata.fp_prev_size = leaf.info->size;
@@ -666,7 +669,7 @@ class BTree {
                       << std::endl;
         }
         life.reset();
-        mutexes[fp_meta.fp_id].unlock();
+
         return true;
     }
 
@@ -681,9 +684,9 @@ class BTree {
         // lock the fast-path to check if we can use it
         std::unique_lock fp_meta_lock(fp_prev_meta_mutex);
         auto fp_meta = fp_metadata.load();
-        if ((fp_meta.fp_id == head_id || fp_meta.fp_min <= key)
+        if ((fp_meta.fp_id == head_id.load() || fp_meta.fp_min <= key)
 
-            && (fp_meta.fp_id == tail_id || key < fp_meta.fp_max)) {
+            && (fp_meta.fp_id == tail_id.load() || key < fp_meta.fp_max)) {
             fast = true;
 
             life.success();
@@ -691,6 +694,8 @@ class BTree {
             leaf.load(manager.open_block(fp_meta.fp_id));
 
             if (leaf.info->size < node_t::leaf_capacity) {
+                // std::cout << "fast insert entered with key: " << key
+                //           << std::endl;
                 fp_meta_lock.unlock();  // unlock fp_prev_meta_mutex
                 // we can directly insert to the fast-path
                 if constexpr (LEAF_APPENDS_ENABLED) {
@@ -714,8 +719,9 @@ class BTree {
                 return;  // also unlocks fp_mutex
             }
 
-            // std::cout << "in else block of fp" << std::endl;
-            // else block -> fast-path is will be at capacity needs to split
+            // std::cout << "in else block of fp with key: " << key <<
+            // std::endl; else block -> fast-path is will be at capacity needs
+            // to split
 
             // reload fp metadata
             fp_meta = fp_metadata.load();
@@ -735,8 +741,8 @@ class BTree {
                 }
             }
             ++ctr_fast_fail;
-            mutexes[fp_meta.fp_id].unlock();  // unlock fast-path as it will be
-                                              // locked by find_leaf_exclusive
+            // unlock fast-path as it will be locked by find_leaf_exclusive
+            mutexes[fp_meta.fp_id].unlock();
 
             // split case handled as a top-insert as both perform similar effort
             find_leaf_exclusive(leaf, path, key, leaf_max);
@@ -754,23 +760,20 @@ class BTree {
             // fp_meta_lock will be unlocked when going out of scope
             return;
         } else {
-            // std::cout << "non fast insert entered" << std::endl;
+            // std::cout << "non fast insert entered with key: " << key
+            //           << std::endl;
 
-            // std::unique_lock fp_meta_lock(fp_prev_meta_mutex);
             // does not qualify for fast-path
             ++ctr_fast_fail;
             fast = false;
             bool reset = life.failure();
-            if (!reset) {
-                // not resetting the fast-path so it's metadata can be unlocked
-                // fp_lock.unlock();
-            }
 
             // find the leaf node to insert into
             find_leaf_exclusive(leaf, key, leaf_max);
 
             if (reset) {
-                // std::cout << "Resetting fast-path" << std::endl;
+                // std::cout << "Resetting fast-path for key: " << key
+                //           << std::endl;
                 ++ctr_hard;
                 // sets fast to true as we reset the fast-path
                 fast = reset_fast_path(
@@ -790,6 +793,9 @@ class BTree {
             }
             mutexes[leaf.info->id].unlock();
             find_leaf_exclusive(leaf, path, key, leaf_max);
+            if (!fast && leaf.info->id != fp_prev_metadata.fp_prev_id) {
+                fp_meta_lock.unlock();
+            }
             index = leaf.value_slot(key);
             split_insert(leaf, index, path, key, value, fast);
             // will unlock fp_prev_meta_mutex when going out of scope
