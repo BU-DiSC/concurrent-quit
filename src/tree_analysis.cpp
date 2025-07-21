@@ -32,7 +32,7 @@ using namespace ConcurrentQuITBTreeAtomic;
 using namespace ConcurrentQuITBTreeAtomic2;
 #else
 // using namespace SimpleBTree;  // FOR_SIMPLEBTREE or fallback
-using namespace ConcurrentQuITBTreeAtomic2;
+using namespace SimpleBTree;
 #endif
 
 #if defined(FOR_CONCURRENT_QUIT_APPENDS) || \
