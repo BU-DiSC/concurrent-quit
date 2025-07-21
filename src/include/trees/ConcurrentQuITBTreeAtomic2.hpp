@@ -433,47 +433,6 @@ class BTree {
                 .count();
     }
 
-    /*
-        Function to determine the split position of the leaf node
-        Requires (from caller):
-            (1) leaf to be locked
-            (2) fp_mutex to be locked
-            (3) fp_prev_meta_mutex to be locked
-    */
-    uint16_t determine_split_pos(node_t &leaf, uint16_t index, bool &fp_move) {
-        uint16_t split_leaf_pos = SPLIT_LEAF_POS;
-        auto fp_meta = fp_metadata.load();
-        // requires leaf, fp_mutex and fp_prev_meta_mutex to be locked by caller
-        if (leaf.info->id == fp_meta.fp_id) {
-            // determine split position based on fast path metadata
-            if (fp_prev_metadata.fp_prev_id == INVALID_NODE_ID ||
-                fp_prev_metadata.fp_prev_size < IQR_SIZE_THRESH) {
-                // move the fast-path to new leaf
-                fp_move = true;
-            } else {
-                size_t max_distance = IKR::upper_bound(
-                    dist(fp_meta.fp_min, fp_prev_metadata.fp_prev_min),
-                    fp_prev_metadata.fp_prev_size, fp_meta.fp_size);
-                uint16_t outlier_pos =
-                    leaf.value_slot2(fp_meta.fp_min + max_distance);
-                if (outlier_pos <= SPLIT_LEAF_POS) {
-                    // retain fast-path as is
-                    split_leaf_pos = outlier_pos;
-                } else {
-                    split_leaf_pos = outlier_pos - 10 < SPLIT_LEAF_POS
-                                         ? SPLIT_LEAF_POS
-                                         : outlier_pos - 10;
-                    // move fast-path to new leaf
-                    fp_move = true;
-                }
-                if (index < outlier_pos) {
-                    split_leaf_pos++;
-                }
-            }
-        }
-        return split_leaf_pos;
-    }
-
     void split_insert(node_t &leaf, uint16_t index, const path_t &path,
                       const key_type &key, const value_type &value, bool fast) {
         ++size;
