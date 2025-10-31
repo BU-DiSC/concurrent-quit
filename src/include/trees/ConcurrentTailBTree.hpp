@@ -120,23 +120,33 @@ class BTree {
 
     void insert(const key_type &key, const value_type &value) {
         node_t leaf;
+        // take a lock on the tail metadata
+        std::unique_lock tail_lock(fp_mutex);
         bool fast = fast_insert(key);
         if (fast) {
             leaf.load(manager.open_block(tail_id));
             uint16_t index = leaf.value_slot(key);
             if (leaf_insert(leaf, index, key, value)) {
                 ++ctr_fast;
+                // scoped lock is automatically released here
                 return;
             }
+            mutexes[leaf.info->id].unlock();
+            insert_pessimistic(key, value);
+            // we are done with this insert path
+            // scoped lock is automatically released here.
+            return;
         } else {
+            // unlock tail metadata lock as insert not in fp
+            tail_lock.unlock();
             find_leaf_exclusive(leaf, key);
             uint16_t index = leaf.value_slot(key);
             if (leaf_insert(leaf, index, key, value)) {
                 return;
             }
+            mutexes[leaf.info->id].unlock();
+            insert_pessimistic(key, value);
         }
-        mutexes[leaf.info->id].unlock();
-        insert_pessimistic(key, value);
     }
 
     void insert_pessimistic(const key_type &key, const value_type &value) {
@@ -447,6 +457,9 @@ class BTree {
 
     BlockManager &manager;
     mutable std::vector<shared_mutex> mutexes;
+
+    mutable std::shared_mutex fp_mutex;
+
     const node_id_t root_id;
     node_id_t head_id;
     node_id_t tail_id;

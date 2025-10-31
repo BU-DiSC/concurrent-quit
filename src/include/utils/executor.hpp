@@ -231,7 +231,7 @@ class Workload {
                 if (!tree.contains(item)) {
                     count++;
 #ifdef DEBUG
-                    std::cerr << item << " not found" << std::endl;
+                    // std::cerr << item << " not found" << std::endl;
 
 #endif
                 }
