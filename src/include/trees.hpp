@@ -3,6 +3,7 @@
 #include "trees/ConcurrentQuITBTreeAppends.hpp"
 #include "trees/ConcurrentQuITBTreeAtomic.hpp"
 #include "trees/ConcurrentQuITBTreeAtomic2.hpp"
+#include "trees/ConcurrentQuitBTreeSmartQueue.hpp"
 #include "trees/ConcurrentSimpleBTree.hpp"
 #include "trees/ConcurrentTailBTree.hpp"
 #include "trees/LILBTree.hpp"

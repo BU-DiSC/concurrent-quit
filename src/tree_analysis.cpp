@@ -30,13 +30,16 @@ using namespace ConcurrentQuITBTreeAppends;
 using namespace ConcurrentQuITBTreeAtomic;
 #elif defined(FOR_CONCURRENT_QUIT_ATOMIC2)
 using namespace ConcurrentQuITBTreeAtomic2;
+#elif defined(FOR_CONCURRENT_QUIT_SMARTQUEUE)
+using namespace ConcurrentQuitBTreeSmartQueue;
 #else
 using namespace SimpleBTree;  // FOR_SIMPLEBTREE or fallback
 #endif
 
 #if defined(FOR_CONCURRENT_QUIT_APPENDS) || \
     defined(FOR_CONCURRENT_QUIT_ATOMIC) ||  \
-    defined(FOR_CONCURRENT_QUIT_ATOMIC2)
+    defined(FOR_CONCURRENT_QUIT_ATOMIC2) || \
+    defined(FOR_CONCURRENT_QUIT_SMARTQUEUE)
 using tree_t = BTree<key_type, value_type, true>;
 #else
 using tree_t = BTree<key_type, value_type>;
