@@ -3,7 +3,6 @@
 #include <atomic>
 #include <chrono>
 #include <cmath>
-#include <condition_variable>
 #include <cstring>
 #include <functional>
 #include <iostream>
@@ -19,7 +18,7 @@
 #include "ikr.h"
 #include "sort.hpp"
 
-namespace ConcurrentQuitBTreeSmartQueue {
+namespace ConcurrentQuITBTreeFinal {
 struct reset_stats {
     uint8_t fails;
     uint8_t threshold;
@@ -53,9 +52,9 @@ class BTree {
     using step = node_id_t;
     using path_t = std::vector<step>;
 
-    static constexpr const char *name = LEAF_APPENDS_ENABLED
-                                            ? "ConcurrentQuitBTreeLeafAppends"
-                                            : "ConcurrentQuitBTreeSmartQueue";
+    static constexpr const char *name =
+        LEAF_APPENDS_ENABLED ? "ConcurrentQuitBTreeFinalLeafAppends"
+                             : "ConcurrentQuITBTreeFinal";
     static constexpr const bool concurrent = false;
     friend std::ostream &operator<<(std::ostream &os, const BTree &tree) {
         os << tree.size << ", " << +tree.height << ", " << tree.internal << ", "
@@ -133,18 +132,11 @@ class BTree {
     // fast_path_helper_metadata fp_prev_metadata;
     std::atomic<fast_path_helper_metadata> fp_prev_metadata;
 
-    // Smart-queue writer serialization: mutex + condition-variable
-    // Writers wait on the condition variable rather than spinning when the
-    // insert path is already in use. The atomic flag `is_insert_path_active`
-    // denotes whether a writer currently has the insertion path.
-    std::mutex writer_queue_mutex;
-    std::condition_variable writer_queue_cv;
-    // Protected by `writer_queue_mutex`.
-    bool is_insert_path_active{false};
-
     uint8_t height;
 
     reset_stats life;
+
+    size_t opt_retries;
 
     // std::atomic<bool> fp_sorted{};
 
@@ -273,6 +265,97 @@ class BTree {
 
         mutexes[parent_id].unlock_shared();
         node.load(manager.open_block(leaf_id));
+    }
+
+    bool does_node_have_space(const node_t &node) const {
+        if (node.info->type == bp_node_type::INTERNAL) {
+            return node.info->size < node_t::internal_capacity;
+        } else {
+            return node.info->size < node_t::leaf_capacity;
+        }
+    }
+
+    bool find_leaf_exclusive(node_t &node, path_t &path, const key_type &key,
+                             key_type &leaf_max, size_t bottom_k) const {
+        if (bottom_k == 0) bottom_k = 1;  // ensure leaf is included
+
+        path.clear();
+        path.reserve(height);
+
+        bool kth_has_space = false;
+        const size_t exclusive_start_level =
+            (bottom_k >= height) ? 1 : (height - bottom_k + 1);
+
+        // Start at root and decide initial lock mode (shared vs exclusive)
+        node_id_t parent_id = root_id;
+        bool parent_exclusive = (1 >= exclusive_start_level);
+        if (parent_exclusive) {
+            mutexes[parent_id].lock();
+            ++ctr_root_unique;
+            path.push_back(parent_id);
+        } else {
+            mutexes[parent_id].lock_shared();
+            ++ctr_root_shared;
+        }
+        node.load(manager.open_block(parent_id));
+        // If the root is the first exclusive node, inspect it now.
+        if (exclusive_start_level == 1) {
+            kth_has_space = does_node_have_space(node);
+        }
+
+        uint8_t i = height;
+
+        while (--i > 0) {
+            uint16_t slot = node.child_slot(key);
+            if (slot != node.info->size) {
+                leaf_max = node.keys[slot];
+            }
+
+            node_id_t child_id = node.children[slot];
+
+            bool child_exclusive = (i <= bottom_k);
+            if (child_exclusive) {
+                // acquire exclusive lock for child
+                mutexes[child_id].lock();
+                path.push_back(child_id);
+                if (i == bottom_k) {
+                    node_t kth_node(manager.open_block(child_id));
+                    kth_node.load(manager.open_block(child_id));
+                    kth_has_space = does_node_have_space(kth_node);
+                }
+                if (!parent_exclusive) {
+                    mutexes[parent_id].unlock_shared();
+                }
+                parent_exclusive = true;  // now in exclusive region
+            } else {
+                mutexes[child_id].lock_shared();
+                mutexes[parent_id].unlock_shared();
+            }
+            parent_id = child_id;
+            node.load(manager.open_block(parent_id));
+        }
+        // handle the leaf
+        uint16_t slot = node.child_slot(key);
+        if (slot < node.info->size) {
+            leaf_max = node.keys[slot];
+        }
+        node_id_t leaf_id = node.children[slot];
+        mutexes[leaf_id].lock();
+        path.push_back(leaf_id);
+        // If the leaf is the first exclusive-level node, compute k-th space.
+        if (exclusive_start_level == height) {
+            node_t kth_node(manager.open_block(leaf_id));
+            kth_node.load(manager.open_block(leaf_id));
+            kth_has_space = kth_node.info->size < node_t::leaf_capacity;
+        }
+
+        // check if we can release parent
+        if (!parent_exclusive) {
+            mutexes[parent_id].unlock_shared();
+        }
+
+        // return whether the k-th node from the bottom is less than capacity
+        return (path.size() >= bottom_k) && kth_has_space;
     }
 
     void internal_insert(const path_t &path, key_type key, node_id_t child_id) {
@@ -626,27 +709,13 @@ class BTree {
     }
 
    public:
-    // Helper: does key fall within current fast-path window?
-    bool qualifies_for_fast_path(const key_type &key) const {
-        return (fp_metadata.fp_id == head_id || fp_metadata.fp_min <= key) &&
-               (fp_metadata.fp_id == tail_id || key < fp_metadata.fp_max);
-    }
-
-    // Helper: does key likely belong to the predecessor of the fast-path?
-    // Uses advisory fp_prev_metadata; may be slightly stale but safe.
-    bool qualifies_for_prev(const key_type &key) const {
-        auto prev = fp_prev_metadata.load(std::memory_order_relaxed);
-        if (prev.fp_prev_id == INVALID_NODE_ID) return false;
-        // Keys in [prev_min, fp_min) are expected to map to the prev leaf.
-        return (prev.fp_prev_min <= key) && (key < fp_metadata.fp_min);
-    }
-
-    explicit BTree(BlockManager &m)
+    explicit BTree(BlockManager &m, size_t retries = 0)
         : manager(m),
           mutexes(m.get_capacity()),
           root_id(m.allocate()),
           height(1),
-          life(sqrt(node_t::leaf_capacity)) {
+          life(sqrt(node_t::leaf_capacity)),
+          opt_retries(retries) {
         head_id = tail_id = m.allocate();
 
         fp_metadata.fp_min = {};
@@ -752,15 +821,6 @@ class BTree {
         bool treat_as_fast = fast || (leaf.info->id == fp_metadata.fp_id) ||
                              (leaf.info->next_id == fp_metadata.fp_id);
 
-        // If we need to update fast-path metadata but the caller did not
-        // hold `fp_mutex` (i.e., fast == false), acquire it here so that
-        // subsequent helpers that modify FP metadata are safe. If the
-        // caller already held it (fast == true) we must not re-lock.
-        std::unique_lock<std::shared_mutex> local_fp_lock;
-        if (treat_as_fast && !fast) {
-            local_fp_lock = std::unique_lock<std::shared_mutex>(fp_mutex);
-        }
-
         uint16_t index = leaf.value_slot(key);
 
         // First attempt: direct insert. On success, release parent locks.
@@ -782,60 +842,96 @@ class BTree {
         split_insert(leaf, index, path, key, value, treat_as_fast);
     }
 
-    // Attempt a direct fast-path insert when the key is within the FP window
-    // and the FP leaf has space. Returns true if the insert completed.
-    bool try_fast_direct_insert(const key_type &key, const value_type &value) {
-        // fp_mutex must already be held by caller
-        mutexes[fp_metadata.fp_id].lock();
-        node_t leaf(manager.open_block(fp_metadata.fp_id));
+    // optimistic insert for top-insert with only one try - immediately switch
+    // to insert_pessimistic
+    void insert_optimistic(const key_type &key, const value_type &value,
+                           bool fast) {
+        path_t path;
+        node_t leaf;
+        key_type leaf_max{};
 
-        if (leaf.info->size >= node_t::leaf_capacity) {
-            mutexes[fp_metadata.fp_id].unlock();
-            return false;
-        }
+        find_leaf_exclusive(leaf, key, leaf_max);
+        bool treat_as_fast = fast || (leaf.info->id == fp_metadata.fp_id) ||
+                             (leaf.info->next_id == fp_metadata.fp_id);
+        uint16_t index = leaf.value_slot(key);
 
-        uint16_t index;
-        if constexpr (LEAF_APPENDS_ENABLED) {
-            index = fp_metadata.fp_size;
-        } else {
-            auto start = std::chrono::high_resolution_clock::now();
-            index = leaf.value_slot(key);
-            auto end = std::chrono::high_resolution_clock::now();
-            find_leaf_slot_time +=
-                std::chrono::duration_cast<std::chrono::nanoseconds>(end -
-                                                                     start)
-                    .count();
-        }
-
-        // Maintain existing behavior: bump fp_size pre-insert.
-        fp_metadata.fp_size++;
-        leaf_insert(leaf, index, key, value, /*fast=*/true);
-        ++ctr_fast;
-        return true;
-    }
-
-    // Handle the fast-path-full case: optionally sort FP leaf (append mode),
-    // then delegate to pessimistic insert with fast=true.
-    void handle_fast_full_insert(const key_type &key, const value_type &value) {
-        // fp_mutex must already be held by caller
-        if constexpr (LEAF_APPENDS_ENABLED) {
-            if (!fp_metadata.fp_sorted) {
-                mutexes[fp_metadata.fp_id].lock();
-                node_t leaf(manager.open_block(fp_metadata.fp_id));
-                sort_leaf(leaf);
-                fp_metadata.fp_sorted = true;
-                ++ctr_sort;
-                manager.mark_dirty(fp_metadata.fp_id);
-                mutexes[fp_metadata.fp_id].unlock();
+        if (leaf_insert(leaf, index, key, value, treat_as_fast)) {
+            if (leaf.info->id == fp_metadata.fp_id) {
+                ++fp_metadata.fp_size;
             }
+            for (const auto &parent_id : path) {
+                mutexes[parent_id].unlock();
+            }
+            return;
         }
-        ++ctr_fast_fail;
-        insert_pessimistic(key, value, /*fast=*/true);
+        mutexes[leaf.info->id].unlock();
+        insert_pessimistic(key, value, /*fast=*/false);
     }
 
-    // The original insertion logic has been renamed to `tree_insert` so the
-    // smart-queue insertion policy can be implemented in `insert`.
-    void tree_insert(const key_type &key, const value_type &value) {
+    void top_insert_iterative(const key_type &key, const value_type &value,
+                              bool fast) {
+        const uint8_t retries = height;
+
+        for (size_t k = 1; k <= retries; ++k) {
+            path_t path;
+            node_t leaf;
+            key_type leaf_max{};
+
+            bool kth_has_space =
+                find_leaf_exclusive(leaf, path, key, leaf_max, k);
+
+            // If we didn't lock enough nodes or the k-th-from-bottom node
+            // didn't have space, unlock anything we did lock and retry.
+            if (!kth_has_space) {
+                for (const auto &id : path) {
+                    mutexes[id].unlock();
+                }
+                continue;
+            }
+
+            if (path.empty()) {
+                // defensive: if path is empty treat as failure and retry
+                continue;
+            }
+            path.pop_back();  // remove leaf id from parents list
+
+            bool treat_as_fast = fast || (leaf.info->id == fp_metadata.fp_id) ||
+                                 (leaf.info->next_id == fp_metadata.fp_id);
+
+            uint16_t index = leaf.value_slot(key);
+            if (leaf_insert(leaf, index, key, value, /*fast=*/treat_as_fast)) {
+                if (leaf.info->id == fp_metadata.fp_id) {
+                    ++fp_metadata.fp_size;
+                }
+                for (const auto &parent_id : path) {
+                    mutexes[parent_id].unlock();
+                }
+                return;
+            }
+            split_insert(leaf, index, path, key, value, /*fast=*/treat_as_fast);
+            return;
+        }
+
+        // All optimistic attempts failed; fall back to pessimistic path.
+        insert_pessimistic(key, value, /*fast=*/false);
+    }
+
+    // Helper: does key fall within current fast-path window?
+    bool qualifies_for_fast_path(const key_type &key) const {
+        return (fp_metadata.fp_id == head_id || fp_metadata.fp_min <= key) &&
+               (fp_metadata.fp_id == tail_id || key < fp_metadata.fp_max);
+    }
+
+    // Helper: does key likely belong to the predecessor of the fast-path?
+    // Uses advisory fp_prev_metadata; may be slightly stale but safe.
+    bool qualifies_for_prev(const key_type &key) const {
+        auto prev = fp_prev_metadata.load(std::memory_order_relaxed);
+        if (prev.fp_prev_id == INVALID_NODE_ID) return false;
+        // Keys in [prev_min, fp_min) are expected to map to the prev leaf.
+        return (prev.fp_prev_min <= key) && (key < fp_metadata.fp_min);
+    }
+
+    void insert(const key_type &key, const value_type &value) {
         // std::cout << "Inserting key: " << key << std::endl;
         path_t path;
         uint16_t index;
@@ -846,8 +942,9 @@ class BTree {
         // lock the fast-path to check if we can use it
         std::unique_lock fp_lock(fp_mutex);  // scoped lock
         // std::unique_lock fp_meta_lock(fp_meta_mutex);
-        // Case A: qualifies for fast path (within fp_min..fp_max window)
-        if (qualifies_for_fast_path(key)) {
+        if ((fp_metadata.fp_id == head_id || fp_metadata.fp_min <= key)
+
+            && (fp_metadata.fp_id == tail_id || key < fp_metadata.fp_max)) {
             fast = true;
 
             life.success();
@@ -855,7 +952,6 @@ class BTree {
                 .lock();  // will be unlocked in leaf_insert()
             leaf.load(manager.open_block(fp_metadata.fp_id));
 
-            // A1: Fast path has space -> direct fast insert
             if (fp_metadata.fp_size < node_t::leaf_capacity) {
                 // we can directly insert to the fast-path
                 if constexpr (LEAF_APPENDS_ENABLED) {
@@ -878,7 +974,8 @@ class BTree {
                 ++ctr_fast;
                 return;  // also unlocks fp_mutex
             }
-            // A2: Fast path qualifies but is full -> handle like top-insert
+            // Fast path qualifies but is full->handle like top-insert
+            // check if we need to sort the fast-path
             if constexpr (LEAF_APPENDS_ENABLED) {
                 if (!fp_metadata.fp_sorted) {
                     sort_leaf(leaf);
@@ -892,19 +989,19 @@ class BTree {
                             // by find_leaf_exclusive
             // Split case handled as a top-insert; delegate to pessimistic path,
             // but allow fast metadata updates where applicable.
-            insert_pessimistic(key, value, /*fast=*/true);
+            // insert_pessimistic(key, value, /*fast=*/true);
+            insert_optimistic(key, value, /*fast=*/true);
+            // top_insert_iterative(key, value, /*fast=*/true);
+
             // fp_lock and fp_meta_lock will be unlocked when going out of scope
             return;
         } else {
-            // does not qualify for fast-path (mirror Atomic flow)
             ++ctr_fast_fail;
             fast = false;
             bool reset = life.failure();
 
             if (reset) {
-                // Simplified reset handling: delegate to pessimistic path
                 ++ctr_hard;
-                // find the leaf node to insert into
                 find_leaf_exclusive(leaf, key, leaf_max);
                 reset_fast_path(leaf, leaf_max);
                 index = leaf.value_slot(key);
@@ -914,8 +1011,6 @@ class BTree {
                         ++fp_metadata.fp_size;
                     }
                     // insert was successful so we can complete the operation
-                    // leaf_insert() will unlock the leaf node, unlock any
-                    // parents
                     for (const auto &parent_id : path) {
                         mutexes[parent_id].unlock();
                     }
@@ -923,28 +1018,48 @@ class BTree {
                 }
                 // avoid deadlock: unlock leaf before delegating
                 mutexes[leaf.info->id].unlock();
-                insert_pessimistic(key, value, /*fast=*/true);
+                // insert_pessimistic(key, value, /*fast=*/true);
+                insert_optimistic(key, value, /*fast=*/true);
+                // top_insert_iterative(key, value, /*fast=*/true);
                 return;
             }
+            // find the leaf node to insert into
+            // find_leaf_exclusive(leaf, key, leaf_max);
+            // index = leaf.value_slot(key);
+            // // attempt to insert into the leaf node
+            // if (leaf_insert(leaf, index, key, value, true)) {
+            //     // if we inserted into the fast-path, update its size
+            //     if (leaf.info->id == fp_metadata.fp_id) {
+            //         ++fp_metadata.fp_size;
+            //     }
+            //     // insert was successful so we can complete the operation
+            //     // leaf_insert() will unlock the leaf node, unlock any
+            //     parents for (const auto &parent_id : path) {
+            //         mutexes[parent_id].unlock();
+            //     }
+            //     return;  // also unlocks fp_meta_mutex + fp_mutex
+            // }
+            // mutexes[leaf.info->id].unlock();
+            // if (!reset) {
+            //     // fp_lock.unlock();
+            // }
+            // find_leaf_exclusive(leaf, path, key, leaf_max);
+            // index = leaf.value_slot(key);
+            // split_insert(leaf, index, path, key, value, true);
+
             if (qualifies_for_prev((key))) {
-                insert_pessimistic(key, value, /*fast=*/true);
+                // insert_pessimistic(key, value, /*fast=*/true);
+                insert_optimistic(key, value, /*fast=*/true);
+                // top_insert_iterative(key, value, /*fast=*/true);
                 return;
             }
             // fp_lock.unlock();
-            insert_pessimistic(key, value, /*fast=*/true);
-            return;
+            // insert_pessimistic(key, value, /*fast=*/false);
+            insert_optimistic(key, value, /*fast=*/false);
+            // top_insert_iterative(key, value, /*fast=*/false);
+            // will unlock fp_meta_mutex when going out of scope
         }
         // will unlock fp_mutex when going out of scope
-    }
-
-    // New smart-queue entry point for inserts. Implementation will
-    // orchestrate writer queueing: wait on the condition variable when
-    // another writer holds the insert path, mark the path active, call
-    // `tree_insert(...)`, then clear the flag and notify one waiter.
-    void insert(const key_type &key, const value_type &value) {
-        // Forward directly to the tree-level insert. The smart-queueing is
-        // now targeted to the fast-path inside `tree_insert()`.
-        tree_insert(key, value);
     }
 
     uint32_t select_k(size_t count, const key_type &min_key) const {
@@ -1017,4 +1132,4 @@ class BTree {
         }
     }
 };
-}  // namespace ConcurrentQuitBTreeSmartQueue
+}  // namespace ConcurrentQuITBTreeFinal

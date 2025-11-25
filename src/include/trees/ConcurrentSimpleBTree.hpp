@@ -47,12 +47,15 @@ class BTree {
         ctr_root = 0;
     }
 
-    explicit BTree(BlockManager &m)
+    // default to 0 retries for optimistic insert - this executes standard lock
+    // crabbing
+    explicit BTree(BlockManager &m, size_t retries = 0)
         : manager(m),
           mutexes(m.get_capacity()),
           root_id(m.allocate()),
           head_id(m.allocate()),
-          height(1) {
+          height(1),
+          opt_retries(retries) {
         node_t leaf(manager.open_block(head_id), bp_node_type::LEAF);
         manager.mark_dirty(head_id);
         leaves = 1;
@@ -94,10 +97,9 @@ class BTree {
         return true;
     }
 
-    static constexpr size_t OPT_RETRIES = 4;
-    void insert(const key_type &key, const value_type &value) {
+    void insert_optimistic(const key_type &key, const value_type &value) {
         node_t leaf;
-        for (size_t i = 0; i < OPT_RETRIES; ++i) {
+        for (size_t i = 0; i < opt_retries; ++i) {
             find_leaf_exclusive(leaf, key);
             uint16_t index = leaf.value_slot(key);
             if (leaf_insert(leaf, index, key, value)) {
@@ -122,6 +124,10 @@ class BTree {
             return;
         }
         split_insert(leaf, index, path, key, value);
+    }
+
+    void insert(const key_type &key, const value_type &value) {
+        insert_optimistic(key, value);
     }
 
     uint32_t select_k(size_t count, const key_type &min_key) const {
@@ -411,5 +417,6 @@ class BTree {
     uint8_t height;
     uint32_t leaves;
     uint32_t internal;
+    const size_t opt_retries;
 };
 }  // namespace ConcurrentSimpleBTree
